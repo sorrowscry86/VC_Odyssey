@@ -93,6 +93,117 @@ const ITEM_DATA = {
     PHOENIX_DOWN: { name: 'Phoenix Down', type: 'consumable', maxStack: 9, description: 'Revives with 1 HP', effect: 'revive' }
 };
 
+// ===== NARRATIVE & SCENE DATA =====
+const SCENES = {
+    AWAKENING: {
+        id: 'AWAKENING',
+        location: 'INN_ROOM',
+        music: 'inn_theme',
+        dialogue: [
+            { speaker: 'Leo', text: "What the... this isn't my room. Where's my PC?" },
+            { speaker: 'Eliza', text: 'Leo. Don\'t panic. But I think... I think we\'re in Chrono-Fantasy 7.' },
+            { speaker: 'Leo', text: 'In what? The SNES game? That\'s impossible. We were just... on the couch.' },
+            { speaker: 'Leo', text: 'This has to be a dream.', action: 'pinch' },
+            { speaker: 'System', text: 'STATUS: NORMAL' },
+            { speaker: 'Leo', text: '...', action: 'look_at_hands' },
+            { speaker: 'System', text: 'LEO: HP 70/70 MP 25/25' },
+            { speaker: 'Eliza', text: 'See? We have a UI. We\'re in the game. We must have gotten pulled in when we booted up the console.' },
+            { speaker: 'Leo', text: 'How do I skip this? Where\'s the \'Start\' button? Where\'s the menu? How do I quit?' },
+            { speaker: 'Eliza', text: 'I\'ve tried. It doesn\'t work. The game is in a cutscene. We are in a cutscene. And there\'s only one way to end an RPG, Leo.' },
+            { speaker: 'Leo', text: '...You don\'t mean.' },
+            { speaker: 'Eliza', text: 'We have to beat it. From the inside.' },
+            { speaker: 'Innkeeper', text: 'Ah, you\'re finally awake!' },
+            { speaker: 'Innkeeper', text: 'You must hurry! The great \'Inciting Incident Festival\' is about to begin!' },
+            { speaker: 'Leo', text: '...That guy just... slid. And... \'The Inciting Incident Festival\'?' },
+            { speaker: 'Eliza', text: 'That\'s our cue. We\'re the Tragic Protagonists, or at least we\'re expected to be. Let\'s go.' },
+            { speaker: 'Leo', text: 'I am not tragic. And I am not a protagonist.' }
+        ]
+    },
+    THE_INCIDENT: {
+        id: 'THE_INCIDENT',
+        location: 'TOWN_SQUARE',
+        music: 'town_theme',
+        dialogue: [
+            { speaker: 'Town Elder', text: '...and so, with the Crystal\'s blessing, we ensure another year of peaceful...!' },
+            { speaker: 'Leo', text: '...An airship. Of course. Impossibly advanced, dark metal, glowing red lights... From the \'High-Tech Empire from one town over.\'' },
+            { speaker: 'General Kage', text: 'Fools! Your pitiful festival is over! I, General Kage of the Zetrulan Empire, am here for your Crystal!' },
+            { speaker: 'Blayde', text: 'I... I don\'t know who I am... or how I got here... My head... a memory? No, it\'s gone... but I know that what you\'re doing is WRONG!' },
+            { speaker: 'Serapha', text: 'The Prophecy... It\'s you! The amnesiac warrior from the sky!' },
+            { speaker: 'Eliza', text: '(Whispering) Okay. There\'s our actual protagonist. The amnesiac one. And there\'s the healer/love-interest. They\'re a set.' },
+            { speaker: 'Leo', text: '(Whispering) Good. Let them handle it. We just need to stay out of the cutscene.' },
+            { speaker: 'General Kage', text: 'Insolent child! You dare oppose me? Then you will be the first to die!' },
+            { speaker: 'System', text: 'BATTLE START - GENERAL KAGE' },
+            { speaker: 'Leo', text: 'Wait, what? We\'re in the party?! We\'re not even in the cutscene!' },
+            { speaker: 'Eliza', text: 'We got pulled in! Just... \'Defend\'!' }
+        ]
+    },
+    POST_BATTLE: {
+        id: 'POST_BATTLE',
+        location: 'TOWN_SQUARE',
+        dialogue: [
+            { speaker: 'Leo', text: '...We\'re dead. We died. I knew it.' },
+            { speaker: 'Eliza', text: 'No... look. It was an unwinnable fight. A story boss. Hmph. Cheap.' },
+            { speaker: 'General Kage', text: 'This is but the first of the Seven Crystals! Soon, the Emperor will awaken the great Demon God, and we shall rule this pathetic world! Next, I\'ll check the Ice Cave and the Volcano!' },
+            { speaker: 'Leo', text: '(Muttering) He\'s not just telling us the whole plot, he\'s giving us the walkthrough.' },
+            { speaker: 'Blayde', text: 'No... He got away... I... I must stop him! I must go to the... uh...' },
+            { speaker: 'Town Elder', text: '(Helpfully) The airship flew north, toward the \'Dungeon of the First Trial,\' which is also known as the \'Cavern of Whispers\'!' },
+            { speaker: 'Blayde', text: '...Right! The Cavern of Whispers! I go now!' },
+            { speaker: 'Blayde', text: 'You two. You have the hearts of warriors. You withstood the General\'s ultimate attack! Will you join me?' },
+            { speaker: 'Leo', text: 'Absolutely not. We \'withstood\' nothing. That was a scripted event. I\'m going to find a way to hack the save file.' },
+            { speaker: 'Eliza', text: 'We would be honored, Blayde. We must stop this... great evil.' },
+            { speaker: 'System', text: 'LEO takes 1 DMG' },
+            { speaker: 'System', text: 'BLAYDE joined the party!' },
+            { speaker: 'System', text: 'SERAPHA joined the party!' },
+            { speaker: 'Eliza', text: '(To Leo) Right. Before we go to that cave, we hit the shop. We are not fighting with our bare hands again.' },
+            { speaker: 'Leo', text: 'Fine. But I am not grinding for 100 hours. And if I see one talking animal mascot, I\'m quitting.' },
+            { speaker: 'Eliza', text: 'That\'s probably Act 2, Leo. Just... just try to keep up. We need to beat the final boss. How hard can it be?' }
+        ]
+    }
+};
+
+const NPC_DATA = {
+    INNKEEPER: {
+        name: 'Innkeeper',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['A good rest sharpens the mind! Stay the night for 10 Gil?'],
+        sprite: 'innkeeper'
+    },
+    WANDERING_NPC_1: {
+        name: 'Villager',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['The item shop has new Potions in stock!'],
+        sprite: 'villager',
+        wanders: true
+    },
+    HOMEOWNER: {
+        name: 'Homeowner',
+        location: 'LEAFY_VILLAGE',
+        dialogue: [
+            'Welcome to Leafyvillage! The weather is lovely today.',
+            'I heard a rumor that monsters are coming back.'
+        ],
+        sprite: 'villager'
+    },
+    TOWN_ELDER: {
+        name: 'Town Elder',
+        location: 'TOWN_SQUARE',
+        dialogue: ['The Crystal has protected our village for generations...'],
+        sprite: 'elder'
+    },
+    SHOPKEEPER: {
+        name: 'Shopkeeper',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['Welcome! Potions and remedies for the weary traveler!'],
+        sprite: 'shopkeeper'
+    },
+    BLACKSMITH: {
+        name: 'Blacksmith',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['You won\'t survive long with that flimsy gear. Take a look.'],
+        sprite: 'blacksmith'
+    }
+};
+
 const ABILITIES = {
     // Blayde's Abilities
     FIRE_SLASH: {
@@ -716,6 +827,73 @@ class BattleSystem {
     }
 }
 
+// ===== DIALOGUE & CUTSCENE SYSTEM =====
+class DialogueSystem {
+    constructor(game) {
+        this.game = game;
+        this.currentScene = null;
+        this.currentDialogueIndex = 0;
+        this.isActive = false;
+        this.dialogueBox = document.getElementById('dialogue-box');
+        this.dialogueText = document.getElementById('dialogue-text');
+    }
+    
+    startScene(sceneId) {
+        const scene = SCENES[sceneId];
+        if (!scene) return false;
+        
+        this.currentScene = scene;
+        this.currentDialogueIndex = 0;
+        this.isActive = true;
+        this.showNextDialogue();
+        return true;
+    }
+    
+    showNextDialogue() {
+        if (!this.currentScene || this.currentDialogueIndex >= this.currentScene.dialogue.length) {
+            this.endScene();
+            return;
+        }
+        
+        const dialogue = this.currentScene.dialogue[this.currentDialogueIndex];
+        let displayText = '';
+        
+        if (dialogue.speaker === 'System') {
+            displayText = `[${dialogue.text}]`;
+        } else if (dialogue.text.includes('(Whispering)') || dialogue.text.includes('(Muttering)') || dialogue.text.includes('(To Leo)') || dialogue.text.includes('(Helpfully)')) {
+            displayText = `${dialogue.speaker}: ${dialogue.text}`;
+        } else {
+            displayText = `${dialogue.speaker}: "${dialogue.text}"`;
+        }
+        
+        this.dialogueText.textContent = displayText;
+        this.dialogueBox.classList.remove('hidden');
+    }
+    
+    advance() {
+        if (!this.isActive) return;
+        
+        this.currentDialogueIndex++;
+        this.showNextDialogue();
+    }
+    
+    endScene() {
+        this.isActive = false;
+        this.dialogueBox.classList.add('hidden');
+        this.currentScene = null;
+        this.currentDialogueIndex = 0;
+        
+        // Trigger post-scene events
+        if (this.game) {
+            this.game.onSceneEnd();
+        }
+    }
+    
+    skip() {
+        this.endScene();
+    }
+}
+
 // ===== MAIN GAME CLASS =====
 class Game {
     constructor() {
@@ -733,30 +911,8 @@ class Game {
     }
     
     initGame() {
-        // Initialize party based on GDD v1.1
+        // Initialize party - Start with Leo and Eliza only (narrative will add Blayde and Serapha)
         this.party = [
-            new Character({
-                name: 'Blayde',
-                level: 5,
-                controlType: 'AI',
-                archetype: 'HERO',
-                hp: 80, maxHp: 80,
-                mp: 20, maxMp: 20,
-                STR: 25, DEF: 15, INT: 5, MND: 5, SPD: 15,
-                abilities: ['FIRE_SLASH', 'HEADSTRONG'],
-                aiLogic: BlaydeAI
-            }),
-            new Character({
-                name: 'Serapha',
-                level: 5,
-                controlType: 'AI',
-                archetype: 'HEALER',
-                hp: 50, maxHp: 50,
-                mp: 40, maxMp: 40,
-                STR: 8, DEF: 10, INT: 12, MND: 25, SPD: 18,
-                abilities: ['HEAL', 'CURE_POISON', 'PROTECT', 'PRAYER'],
-                aiLogic: SeraphaAI
-            }),
             new Character({
                 name: 'Leo',
                 level: 5,
@@ -779,6 +935,31 @@ class Game {
             })
         ];
         
+        // Store Blayde and Serapha for later recruitment
+        this.blaydeCharacter = new Character({
+            name: 'Blayde',
+            level: 5,
+            controlType: 'AI',
+            archetype: 'HERO',
+            hp: 80, maxHp: 80,
+            mp: 20, maxMp: 20,
+            STR: 25, DEF: 15, INT: 5, MND: 5, SPD: 15,
+            abilities: ['FIRE_SLASH', 'HEADSTRONG'],
+            aiLogic: BlaydeAI
+        });
+        
+        this.seraphaCharacter = new Character({
+            name: 'Serapha',
+            level: 5,
+            controlType: 'AI',
+            archetype: 'HEALER',
+            hp: 50, maxHp: 50,
+            mp: 40, maxMp: 40,
+            STR: 8, DEF: 10, INT: 12, MND: 25, SPD: 18,
+            abilities: ['HEAL', 'CURE_POISON', 'PROTECT', 'PRAYER'],
+            aiLogic: SeraphaAI
+        });
+        
         this.inventory = new Inventory();
         this.battle = null;
         
@@ -786,6 +967,14 @@ class Game {
         this.gil = 500; // Starting money
         this.startTime = Date.now();
         this.playTime = 0; // in seconds
+        
+        // Narrative tracking
+        this.currentStoryPhase = 'AWAKENING'; // AWAKENING, TOWN_EXPLORATION, INCIDENT, POST_INCIDENT
+        this.hasSeenAwakening = false;
+        this.hasSeenIncident = false;
+        
+        // Dialogue system
+        this.dialogueSystem = new DialogueSystem(this);
         
         // Overworld
         this.player = {
@@ -805,14 +994,20 @@ class Game {
             this.keys[e.key] = true;
             
             if (e.key === 'Enter') {
-                if (this.state === 'TITLE') {
-                    this.state = 'OVERWORLD';
-                    this.showMessage('Welcome to Generic JRPG! Arrow keys to move, M for menu.');
+                // Advance dialogue if active
+                if (this.dialogueSystem.isActive) {
+                    this.dialogueSystem.advance();
+                } else if (this.state === 'TITLE') {
+                    this.state = 'CUTSCENE';
+                    // Start with the awakening scene
+                    setTimeout(() => {
+                        this.dialogueSystem.startScene('AWAKENING');
+                    }, 500);
                 }
             }
             
             if (e.key === 'm' || e.key === 'M') {
-                if (this.state === 'OVERWORLD') {
+                if (this.state === 'OVERWORLD' && !this.dialogueSystem.isActive) {
                     this.openMenu();
                 }
             }
@@ -820,6 +1015,16 @@ class Game {
             if (e.key === 'Escape') {
                 if (this.state === 'MENU') {
                     this.closeMenu();
+                } else if (this.dialogueSystem.isActive) {
+                    // Allow skipping cutscenes with Escape
+                    this.dialogueSystem.skip();
+                }
+            }
+            
+            if (e.key === ' ') {
+                // Space bar also advances dialogue
+                if (this.dialogueSystem.isActive) {
+                    this.dialogueSystem.advance();
                 }
             }
         });
@@ -827,6 +1032,44 @@ class Game {
         document.addEventListener('keyup', (e) => {
             this.keys[e.key] = false;
         });
+    }
+    
+    onSceneEnd() {
+        // Handle post-scene logic
+        if (this.currentStoryPhase === 'AWAKENING') {
+            this.hasSeenAwakening = true;
+            this.currentStoryPhase = 'TOWN_EXPLORATION';
+            this.state = 'OVERWORLD';
+            this.showMessage('You can now explore Leafy Village. Press M for menu. Walk around to trigger events.');
+        } else if (this.currentStoryPhase === 'INCIDENT') {
+            this.hasSeenIncident = true;
+            this.currentStoryPhase = 'POST_INCIDENT';
+            // Start the story battle with General Kage
+            this.startStoryBattle();
+        } else if (this.currentStoryPhase === 'POST_INCIDENT') {
+            // Add Blayde and Serapha to the party
+            this.party.push(this.blaydeCharacter);
+            this.party.push(this.seraphaCharacter);
+            this.currentStoryPhase = 'ADVENTURE';
+            this.state = 'OVERWORLD';
+            this.showMessage('Blayde and Serapha joined your party! You can now explore and prepare for the Cavern of Whispers.');
+        }
+    }
+    
+    startStoryBattle() {
+        this.state = 'CUTSCENE';
+        // Show the post-battle dialogue immediately (it's an unwinnable fight)
+        setTimeout(() => {
+            // Add Blayde and Serapha temporarily for the battle
+            const tempParty = [...this.party, this.blaydeCharacter, this.seraphaCharacter];
+            
+            // Simulate the unwinnable battle
+            tempParty.forEach(member => {
+                member.stats.hp = 1; // "Defeated" by story boss
+            });
+            
+            this.dialogueSystem.startScene('POST_BATTLE');
+        }, 1000);
     }
     
     gameLoop() {
@@ -945,19 +1188,98 @@ class Game {
     }
     
     renderOverworld() {
-        // Draw grass field
-        for (let y = 0; y < this.height; y += 32) {
-            for (let x = 0; x < this.width; x += 32) {
-                const color = ((x / 32 + y / 32) % 2 === 0) ? '#2d5016' : '#2a4c14';
-                this.ctx.fillStyle = color;
-                this.ctx.fillRect(x, y, 32, 32);
+        // Draw enhanced grass field with texture variation (FF6 style)
+        for (let y = 0; y < this.height; y += 16) {
+            for (let x = 0; x < this.width; x += 16) {
+                // Create varied grass pattern
+                const pattern = (x / 16 + y / 16) % 4;
+                let baseColor, accentColor;
+                
+                if (pattern === 0) {
+                    baseColor = '#3a6b1f';
+                    accentColor = '#2d5016';
+                } else if (pattern === 1) {
+                    baseColor = '#2d5016';
+                    accentColor = '#3a6b1f';
+                } else if (pattern === 2) {
+                    baseColor = '#2a4c14';
+                    accentColor = '#3a6b1f';
+                } else {
+                    baseColor = '#335919';
+                    accentColor = '#2d5016';
+                }
+                
+                // Base grass tile
+                this.ctx.fillStyle = baseColor;
+                this.ctx.fillRect(x, y, 16, 16);
+                
+                // Add grass detail pixels (FF6 style)
+                this.ctx.fillStyle = accentColor;
+                const seed = x * 7 + y * 13;
+                if (seed % 3 === 0) {
+                    this.ctx.fillRect(x + 2, y + 3, 2, 3);
+                    this.ctx.fillRect(x + 8, y + 6, 2, 3);
+                    this.ctx.fillRect(x + 12, y + 2, 2, 3);
+                }
+                if (seed % 5 === 0) {
+                    this.ctx.fillRect(x + 5, y + 10, 2, 2);
+                    this.ctx.fillRect(x + 11, y + 11, 2, 2);
+                }
+                
+                // Dark grass blades
+                this.ctx.fillStyle = '#1a3c0f';
+                if (seed % 7 === 0) {
+                    this.ctx.fillRect(x + 3, y + 5, 1, 2);
+                    this.ctx.fillRect(x + 9, y + 8, 1, 2);
+                }
             }
         }
         
-        // Draw paths
-        this.ctx.fillStyle = '#a0826d';
-        this.ctx.fillRect(this.width / 2 - 40, 0, 80, this.height);
-        this.ctx.fillRect(0, this.height / 2 - 40, this.width, 80);
+        // Draw detailed dirt paths with texture
+        const pathCenterX = this.width / 2;
+        const pathCenterY = this.height / 2;
+        
+        // Vertical path
+        for (let y = 0; y < this.height; y += 8) {
+            for (let px = pathCenterX - 40; px < pathCenterX + 40; px += 8) {
+                const lightness = (px + y) % 3;
+                if (lightness === 0) {
+                    this.ctx.fillStyle = '#b8956a';
+                } else if (lightness === 1) {
+                    this.ctx.fillStyle = '#a0826d';
+                } else {
+                    this.ctx.fillStyle = '#8b7355';
+                }
+                this.ctx.fillRect(px, y, 8, 8);
+                
+                // Add dirt texture
+                if ((px + y) % 11 === 0) {
+                    this.ctx.fillStyle = '#735d47';
+                    this.ctx.fillRect(px + 2, y + 2, 2, 2);
+                }
+            }
+        }
+        
+        // Horizontal path
+        for (let x = 0; x < this.width; x += 8) {
+            for (let py = pathCenterY - 40; py < pathCenterY + 40; py += 8) {
+                const lightness = (x + py) % 3;
+                if (lightness === 0) {
+                    this.ctx.fillStyle = '#b8956a';
+                } else if (lightness === 1) {
+                    this.ctx.fillStyle = '#a0826d';
+                } else {
+                    this.ctx.fillStyle = '#8b7355';
+                }
+                this.ctx.fillRect(x, py, 8, 8);
+                
+                // Add dirt texture
+                if ((x + py) % 11 === 0) {
+                    this.ctx.fillStyle = '#735d47';
+                    this.ctx.fillRect(x + 2, py + 2, 2, 2);
+                }
+            }
+        }
         
         // Draw player
         this.drawPlayer();
@@ -969,28 +1291,99 @@ class Game {
     drawPlayer() {
         const p = this.player;
         
-        // Shadow
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        // Shadow (more detailed)
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.beginPath();
-        this.ctx.ellipse(p.x, p.y + 16, 10, 5, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(p.x, p.y + 20, 12, 6, 0, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // Body
-        this.ctx.fillStyle = '#4169e1';
-        this.ctx.fillRect(p.x - 10, p.y - 6, 20, 16);
+        // Draw Leo in Chrono Trigger style (more detailed sprite)
+        // Legs
+        this.ctx.fillStyle = '#2c3e50';
+        this.ctx.fillRect(p.x - 8, p.y + 8, 6, 10);
+        this.ctx.fillRect(p.x + 2, p.y + 8, 6, 10);
         
-        // Head
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 8, p.y - 16, 16, 12);
+        // Boots
+        this.ctx.fillStyle = '#1a1a1a';
+        this.ctx.fillRect(p.x - 8, p.y + 14, 6, 4);
+        this.ctx.fillRect(p.x + 2, p.y + 14, 6, 4);
         
-        // Hair
+        // Body - blue tunic with detail
+        this.ctx.fillStyle = '#3498db';
+        this.ctx.fillRect(p.x - 10, p.y - 6, 20, 14);
+        
+        // Tunic shadows/highlights
+        this.ctx.fillStyle = '#2980b9';
+        this.ctx.fillRect(p.x + 6, p.y - 6, 4, 14);
+        this.ctx.fillStyle = '#5dade2';
+        this.ctx.fillRect(p.x - 10, p.y - 6, 4, 4);
+        
+        // Belt
         this.ctx.fillStyle = '#8b4513';
-        this.ctx.fillRect(p.x - 8, p.y - 20, 16, 6);
+        this.ctx.fillRect(p.x - 10, p.y + 4, 20, 3);
+        
+        // Belt buckle
+        this.ctx.fillStyle = '#ffd700';
+        this.ctx.fillRect(p.x - 2, p.y + 4, 4, 3);
+        
+        // Arms
+        this.ctx.fillStyle = '#ffdbac';
+        this.ctx.fillRect(p.x - 14, p.y - 2, 4, 10);
+        this.ctx.fillRect(p.x + 10, p.y - 2, 4, 10);
+        
+        // Arm highlights
+        this.ctx.fillStyle = '#ffebd4';
+        this.ctx.fillRect(p.x - 14, p.y - 2, 2, 4);
+        this.ctx.fillRect(p.x + 10, p.y - 2, 2, 4);
+        
+        // Neck
+        this.ctx.fillStyle = '#ffdbac';
+        this.ctx.fillRect(p.x - 4, p.y - 8, 8, 4);
+        
+        // Head - more detailed
+        this.ctx.fillStyle = '#ffdbac';
+        this.ctx.fillRect(p.x - 8, p.y - 20, 16, 14);
+        
+        // Face highlights
+        this.ctx.fillStyle = '#ffebd4';
+        this.ctx.fillRect(p.x - 7, p.y - 19, 6, 6);
+        
+        // Face shadows
+        this.ctx.fillStyle = '#e8c4a3';
+        this.ctx.fillRect(p.x + 4, p.y - 16, 4, 10);
+        
+        // Hair - spiky anime style
+        this.ctx.fillStyle = '#654321';
+        // Back hair
+        this.ctx.fillRect(p.x - 8, p.y - 24, 16, 6);
+        // Hair spikes
+        this.ctx.fillRect(p.x - 10, p.y - 26, 4, 4);
+        this.ctx.fillRect(p.x - 4, p.y - 28, 4, 4);
+        this.ctx.fillRect(p.x + 2, p.y - 26, 4, 4);
+        this.ctx.fillRect(p.x + 8, p.y - 24, 4, 4);
+        
+        // Hair highlights
+        this.ctx.fillStyle = '#8b6f47';
+        this.ctx.fillRect(p.x - 6, p.y - 24, 4, 2);
+        this.ctx.fillRect(p.x - 2, p.y - 26, 2, 2);
         
         // Eyes
         this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(p.x - 5, p.y - 12, 2, 2);
-        this.ctx.fillRect(p.x + 3, p.y - 12, 2, 2);
+        this.ctx.fillRect(p.x - 6, p.y - 14, 3, 3);
+        this.ctx.fillRect(p.x + 3, p.y - 14, 3, 3);
+        
+        // Eye whites
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillRect(p.x - 5, p.y - 13, 1, 1);
+        this.ctx.fillRect(p.x + 4, p.y - 13, 1, 1);
+        
+        // Nose
+        this.ctx.fillStyle = '#e8c4a3';
+        this.ctx.fillRect(p.x, p.y - 11, 2, 2);
+        
+        // Mouth
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(p.x - 2, p.y - 8, 4, 1);
     }
     
     drawOverworldHUD() {
@@ -1051,46 +1444,278 @@ class Game {
     }
     
     drawBattleCharacter(x, y, character, isHero) {
-        // Draw character sprite (simplified)
+        // Draw FF6/Chrono Trigger quality battle sprites
         if (isHero) {
-            // Hero sprite
-            this.ctx.fillStyle = '#4169e1';
-            this.ctx.fillRect(x - 16, y - 10, 32, 28);
-            
-            this.ctx.fillStyle = '#ffdbac';
-            this.ctx.fillRect(x - 12, y - 26, 24, 20);
-            
-            this.ctx.fillStyle = '#8b4513';
-            this.ctx.fillRect(x - 12, y - 30, 24, 8);
+            // Determine which hero to draw
+            if (character.name === 'Leo') {
+                // Leo - detailed battle sprite
+                // Legs & boots
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillRect(x - 12, y + 10, 10, 14);
+                this.ctx.fillRect(x + 2, y + 10, 10, 14);
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(x - 12, y + 18, 10, 6);
+                this.ctx.fillRect(x + 2, y + 18, 10, 6);
+                
+                // Body - blue tunic
+                this.ctx.fillStyle = '#3498db';
+                this.ctx.fillRect(x - 16, y - 8, 32, 18);
+                this.ctx.fillStyle = '#2980b9';
+                this.ctx.fillRect(x + 8, y - 8, 8, 18);
+                this.ctx.fillStyle = '#5dade2';
+                this.ctx.fillRect(x - 16, y - 8, 8, 6);
+                
+                // Belt
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x - 16, y + 6, 32, 4);
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillRect(x - 3, y + 6, 6, 4);
+                
+                // Arms
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 20, y - 2, 6, 14);
+                this.ctx.fillRect(x + 14, y - 2, 6, 14);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 20, y - 2, 3, 6);
+                this.ctx.fillRect(x + 14, y - 2, 3, 6);
+                
+                // Shield (left arm)
+                this.ctx.fillStyle = '#c0c0c0';
+                this.ctx.fillRect(x - 24, y + 2, 8, 12);
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x - 22, y + 4, 4, 8);
+                
+                // Sword (right arm)
+                this.ctx.fillStyle = '#c0c0c0';
+                this.ctx.fillRect(x + 18, y - 6, 4, 16);
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillRect(x + 17, y + 8, 6, 4);
+                
+                // Neck
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 6, y - 12, 12, 6);
+                
+                // Head
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 11, y - 31, 10, 10);
+                this.ctx.fillStyle = '#e8c4a3';
+                this.ctx.fillRect(x + 6, y - 28, 6, 16);
+                
+                // Hair - spiky
+                this.ctx.fillStyle = '#654321';
+                this.ctx.fillRect(x - 12, y - 38, 24, 8);
+                this.ctx.fillRect(x - 14, y - 40, 6, 6);
+                this.ctx.fillRect(x - 6, y - 42, 6, 6);
+                this.ctx.fillRect(x + 2, y - 40, 6, 6);
+                this.ctx.fillRect(x + 10, y - 38, 6, 6);
+                this.ctx.fillStyle = '#8b6f47';
+                this.ctx.fillRect(x - 10, y - 38, 6, 3);
+                
+                // Eyes
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 8, y - 24, 4, 4);
+                this.ctx.fillRect(x + 4, y - 24, 4, 4);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.fillRect(x - 7, y - 23, 2, 2);
+                this.ctx.fillRect(x + 5, y - 23, 2, 2);
+                
+                // Mouth
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 4, y - 16, 8, 2);
+            } else if (character.name === 'Eliza') {
+                // Eliza - mage style
+                // Robe bottom
+                this.ctx.fillStyle = '#8e44ad';
+                this.ctx.fillRect(x - 14, y + 8, 28, 16);
+                this.ctx.fillStyle = '#9b59b6';
+                this.ctx.fillRect(x - 14, y + 8, 10, 16);
+                
+                // Robe middle
+                this.ctx.fillStyle = '#8e44ad';
+                this.ctx.fillRect(x - 16, y - 8, 32, 16);
+                this.ctx.fillStyle = '#9b59b6';
+                this.ctx.fillRect(x - 16, y - 8, 12, 12);
+                
+                // Belt/sash
+                this.ctx.fillStyle = '#e8b923';
+                this.ctx.fillRect(x - 16, y + 4, 32, 4);
+                
+                // Arms
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 20, y - 2, 6, 12);
+                this.ctx.fillRect(x + 14, y - 2, 6, 12);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 20, y - 2, 3, 5);
+                
+                // Staff (right hand)
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x + 18, y - 12, 3, 28);
+                // Staff orb
+                this.ctx.fillStyle = '#00f';
+                this.ctx.fillRect(x + 16, y - 16, 7, 7);
+                this.ctx.fillStyle = '#88f';
+                this.ctx.fillRect(x + 17, y - 15, 3, 3);
+                
+                // Book (left hand)
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x - 24, y + 2, 8, 10);
+                this.ctx.fillStyle = '#d4af37';
+                this.ctx.fillRect(x - 23, y + 3, 2, 8);
+                
+                // Neck
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 6, y - 12, 12, 6);
+                
+                // Head
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 11, y - 31, 10, 10);
+                
+                // Hair - long flowing
+                this.ctx.fillStyle = '#4a235a';
+                this.ctx.fillRect(x - 14, y - 36, 28, 8);
+                this.ctx.fillRect(x - 16, y - 28, 4, 24);
+                this.ctx.fillRect(x + 12, y - 28, 4, 24);
+                this.ctx.fillStyle = '#6c3483';
+                this.ctx.fillRect(x - 12, y - 36, 8, 4);
+                
+                // Eyes
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 8, y - 24, 4, 4);
+                this.ctx.fillRect(x + 4, y - 24, 4, 4);
+                this.ctx.fillStyle = '#9b59b6';
+                this.ctx.fillRect(x - 7, y - 23, 2, 2);
+                this.ctx.fillRect(x + 5, y - 23, 2, 2);
+                
+                // Smile
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 4, y - 16, 2, 2);
+                this.ctx.fillRect(x - 2, y - 15, 4, 2);
+                this.ctx.fillRect(x + 2, y - 16, 2, 2);
+            } else if (character.name === 'Blayde') {
+                // Blayde - warrior with sword
+                // Similar to Leo but with red/orange colors
+                this.ctx.fillStyle = '#c0392b';
+                this.ctx.fillRect(x - 16, y - 8, 32, 18);
+                this.ctx.fillStyle = '#e74c3c';
+                this.ctx.fillRect(x - 16, y - 8, 10, 6);
+                
+                // Big sword
+                this.ctx.fillStyle = '#c0c0c0';
+                this.ctx.fillRect(x + 16, y - 16, 6, 28);
+                this.ctx.fillStyle = '#8b0000';
+                this.ctx.fillRect(x + 15, y + 10, 8, 6);
+                
+                // Similar body structure to Leo
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ff4500';
+                this.ctx.fillRect(x - 14, y - 40, 28, 8);
+            } else if (character.name === 'Serapha') {
+                // Serapha - healer with white robes
+                this.ctx.fillStyle = '#ecf0f1';
+                this.ctx.fillRect(x - 14, y - 8, 28, 24);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.fillRect(x - 14, y - 8, 10, 16);
+                
+                // Pink accents
+                this.ctx.fillStyle = '#ff69b4';
+                this.ctx.fillRect(x - 14, y + 4, 28, 4);
+                
+                // Head with pink hair
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ff1493';
+                this.ctx.fillRect(x - 14, y - 38, 28, 8);
+            }
         } else {
-            // Enemy sprite
-            this.ctx.fillStyle = '#8b008b';
-            this.ctx.fillRect(x - 20, y - 14, 40, 36);
+            // Enhanced enemy sprite - Shadow Beast
+            // Body - dark purple with detail
+            this.ctx.fillStyle = '#4a0e4e';
+            this.ctx.fillRect(x - 24, y - 16, 48, 40);
+            this.ctx.fillStyle = '#5b0f6b';
+            this.ctx.fillRect(x - 20, y - 12, 40, 32);
+            this.ctx.fillStyle = '#350a3a';
+            this.ctx.fillRect(x + 8, y - 12, 16, 32);
             
+            // Horns - detailed
+            this.ctx.fillStyle = '#ff4500';
+            this.ctx.fillRect(x - 28, y - 28, 8, 4);
+            this.ctx.fillRect(x - 32, y - 36, 6, 8);
+            this.ctx.fillRect(x + 20, y - 28, 8, 4);
+            this.ctx.fillRect(x + 26, y - 36, 6, 8);
+            // Horn highlights
+            this.ctx.fillStyle = '#ff6347';
+            this.ctx.fillRect(x - 30, y - 34, 2, 4);
+            this.ctx.fillRect(x + 28, y - 34, 2, 4);
+            
+            // Glowing eyes - more dramatic
             this.ctx.fillStyle = '#ff0000';
-            this.ctx.fillRect(x - 12, y - 6, 6, 6);
-            this.ctx.fillRect(x + 6, y - 6, 6, 6);
+            this.ctx.fillRect(x - 18, y - 8, 8, 8);
+            this.ctx.fillRect(x + 10, y - 8, 8, 8);
+            // Eye glow
+            this.ctx.fillStyle = '#ff6666';
+            this.ctx.fillRect(x - 16, y - 6, 4, 4);
+            this.ctx.fillRect(x + 12, y - 6, 4, 4);
+            
+            // Teeth - sharp and menacing
+            this.ctx.fillStyle = '#fff';
+            for (let i = 0; i < 7; i++) {
+                this.ctx.fillRect(x - 22 + i * 6, y + 10, 4, 10);
+                // Add detail to teeth
+                this.ctx.fillStyle = '#f0f0f0';
+                this.ctx.fillRect(x - 21 + i * 6, y + 11, 2, 8);
+                this.ctx.fillStyle = '#fff';
+            }
+            
+            // Claws
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillRect(x - 28, y + 8, 4, 12);
+            this.ctx.fillRect(x + 24, y + 8, 4, 12);
+            this.ctx.fillStyle = '#f0f0f0';
+            this.ctx.fillRect(x - 27, y + 9, 2, 10);
+            this.ctx.fillRect(x + 25, y + 9, 2, 10);
+            
+            // Body texture/scales
+            this.ctx.fillStyle = '#2a0a2e';
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 3; j++) {
+                    this.ctx.fillRect(x - 16 + i * 10, y - 8 + j * 10, 6, 6);
+                }
+            }
         }
         
-        // HP bar
-        const barWidth = 60;
+        // HP bar with more detail
+        const barWidth = 70;
         const hpPercent = character.stats.hp / character.stats.maxHp;
         
+        // Bar border
         this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(x - barWidth / 2 - 1, y - 45, barWidth + 2, 8);
+        this.ctx.fillRect(x - barWidth / 2 - 2, y - 50, barWidth + 4, 10);
         
+        // Bar background
         this.ctx.fillStyle = '#333';
-        this.ctx.fillRect(x - barWidth / 2, y - 44, barWidth, 6);
+        this.ctx.fillRect(x - barWidth / 2, y - 48, barWidth, 6);
         
+        // HP fill with gradient effect
         const hpColor = hpPercent > 0.5 ? '#0f0' : hpPercent > 0.25 ? '#ff0' : '#f00';
-        this.ctx.fillStyle = hpColor;
-        this.ctx.fillRect(x - barWidth / 2, y - 44, barWidth * hpPercent, 6);
+        const hpDark = hpPercent > 0.5 ? '#0a0' : hpPercent > 0.25 ? '#cc0' : '#a00';
         
-        // Name
-        this.ctx.font = '12px Courier New';
-        this.ctx.fillStyle = '#fff';
+        for (let i = 0; i < barWidth * hpPercent; i += 2) {
+            this.ctx.fillStyle = i % 4 === 0 ? hpColor : hpDark;
+            this.ctx.fillRect(x - barWidth / 2 + i, y - 48, 2, 6);
+        }
+        
+        // Name with shadow
+        this.ctx.font = 'bold 14px Courier New';
+        this.ctx.fillStyle = '#000';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(character.name, x, y - 52);
+        this.ctx.fillText(character.name, x + 1, y - 56);
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(character.name, x, y - 57);
     }
     
     updateBattleUI() {
@@ -1311,9 +1936,14 @@ class Game {
         
         let targets;
         if (targetType === 'enemy') {
-            targets = this.battle.enemies.filter(e => e.stats.hp > 0);
+            targets = this.battle ? this.battle.enemies.filter(e => e.stats.hp > 0) : [];
         } else if (targetType === 'ally') {
             targets = this.party.filter(m => m.stats.hp > 0);
+        }
+        
+        if (targets.length === 0) {
+            targetMenu.classList.add('hidden');
+            return;
         }
         
         targetOptions.innerHTML = targets.map(target => 

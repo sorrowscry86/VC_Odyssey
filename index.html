@@ -3,25 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VC Odyssey - 16-bit JRPG Demo</title>
+    <title>Generic JRPG - Proof of Concept</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="ui-overlay">
+            <!-- Battle UI -->
+            <div id="battle-ui" class="hidden">
+                <div id="party-status">
+                    <!-- Party member status bars -->
+                </div>
+                <div id="enemy-status">
+                    <!-- Enemy status bars -->
+                </div>
+                <div id="battle-log">
+                    <div id="battle-messages"></div>
+                </div>
+                <div id="action-menu" class="hidden">
+                    <div class="menu-title">Choose Action:</div>
+                    <div class="menu-options" id="main-actions"></div>
+                </div>
+                <div id="target-menu" class="hidden">
+                    <div class="menu-title">Choose Target:</div>
+                    <div class="menu-options" id="target-options"></div>
+                </div>
+                <div id="ability-menu" class="hidden">
+                    <div class="menu-title">Choose Ability:</div>
+                    <div class="menu-options" id="ability-options"></div>
+                </div>
+            </div>
+            
+            <!-- Main Menu -->
+            <div id="main-menu" class="hidden">
+                <div class="menu-panel">
+                    <div class="menu-title">MENU</div>
+                    <div class="menu-options">
+                        <div class="menu-option" data-menu="party">Party</div>
+                        <div class="menu-option" data-menu="equipment">Equipment</div>
+                        <div class="menu-option" data-menu="inventory">Inventory</div>
+                        <div class="menu-option" data-menu="close">Close</div>
+                    </div>
+                </div>
+                <div id="menu-details"></div>
+            </div>
+            
+            <!-- Dialogue Box -->
             <div id="dialogue-box" class="hidden">
                 <p id="dialogue-text"></p>
                 <span id="dialogue-indicator">▼</span>
-            </div>
-            <div id="battle-menu" class="hidden">
-                <div class="menu-option" data-action="attack">⚔️ Attack</div>
-                <div class="menu-option" data-action="magic">✨ Magic</div>
-                <div class="menu-option" data-action="item">🎒 Item</div>
-                <div class="menu-option" data-action="defend">🛡️ Defend</div>
-            </div>
-            <div id="stats-panel">
-                <div id="party-stats"></div>
             </div>
         </div>
     </div>

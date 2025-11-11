@@ -271,7 +271,7 @@ class Character {
 }
 
 // ===== AI LOGIC =====
-class BlaydeBonusAI {
+class BlaydeAI {
     static decideAction(character, allies, enemies, game) {
         // Blayde's "Artificial Stupidity"
         // 1. Check if he has enough MP for Fire Slash (his "impressive" ability)
@@ -486,7 +486,7 @@ class BattleSystem {
         // If no override or override was ignored, use AI
         if (!action) {
             if (this.currentCharacter.name === 'Blayde') {
-                action = BlaydAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+                action = BlaydeAI.decideAction(this.currentCharacter, allies, enemies, this.game);
             } else if (this.currentCharacter.name === 'Serapha') {
                 action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
             } else {
@@ -617,7 +617,7 @@ class Game {
                 mp: 20, maxMp: 20,
                 STR: 25, DEF: 15, INT: 5, MND: 5, SPD: 15,
                 abilities: ['FIRE_SLASH', 'HEADSTRONG'],
-                aiLogic: BlaydAI
+                aiLogic: BlaydeAI
             }),
             new Character({
                 name: 'Serapha',

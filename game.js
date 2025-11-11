@@ -1,0 +1,2165 @@
+// Generic JRPG - Proof of Concept
+// Game Design Document v1.1 Implementation
+
+// ===== CONSTANTS AND DATA =====
+const STATUS_EFFECTS = {
+    POISON: { name: 'POISON', color: '#9b59b6', persistent: true },
+    SLEEP: { name: 'SLEEP', color: '#3498db', persistent: false },
+    PARALYSIS: { name: 'PARALYSIS', color: '#f39c12', persistent: false },
+    PROTECT: { name: 'PROTECT', color: '#2ecc71', persistent: false },
+    HASTE: { name: 'HASTE', color: '#e74c3c', persistent: false },
+    REGEN: { name: 'REGEN', color: '#1abc9c', persistent: false }
+};
+
+const EQUIPMENT_DATA = {
+    // Weapons
+    BROADSWORD: { 
+        name: 'Broadsword', 
+        type: 'weapon', 
+        price: 180, 
+        STR: 12, 
+        compatibleWith: ['Blayde', 'Leo'],
+        description: 'A sturdy steel sword'
+    },
+    WOODEN_STAFF: { 
+        name: 'Wooden Staff', 
+        type: 'weapon', 
+        price: 150, 
+        INT: 8, 
+        MND: 8,
+        compatibleWith: ['Serapha', 'Eliza'],
+        description: 'A simple wooden staff'
+    },
+    // Armor
+    LEATHER_TUNIC: { 
+        name: 'Leather Tunic', 
+        type: 'armor', 
+        price: 100, 
+        DEF: 8,
+        compatibleWith: ['Blayde', 'Serapha', 'Leo', 'Eliza'],
+        description: 'Light leather armor'
+    },
+    // Accessories
+    LEATHER_SHIELD: { 
+        name: 'Leather Shield', 
+        type: 'accessory', 
+        price: 80, 
+        DEF: 5,
+        compatibleWith: ['Blayde', 'Leo'],
+        description: 'A small wooden shield'
+    },
+    POISON_RING: {
+        name: 'Poison Ring',
+        type: 'accessory',
+        price: 120,
+        effect: 'POISON_IMMUNITY',
+        compatibleWith: ['Blayde', 'Serapha', 'Leo', 'Eliza'],
+        description: 'Prevents POISON status'
+    },
+    SPEED_BOOTS: {
+        name: 'Speed Boots',
+        type: 'accessory',
+        price: 150,
+        SPD: 5,
+        compatibleWith: ['Blayde', 'Serapha', 'Leo', 'Eliza'],
+        description: 'Increases speed'
+    }
+};
+
+const SHOP_DATA = {
+    LEAFY_VILLAGE_ITEMS: {
+        name: 'Toadstool Sundries',
+        items: [
+            { id: 'POTION', price: 50 },
+            { id: 'ANTIDOTE', price: 20 },
+            { id: 'PHOENIX_DOWN', price: 500 }
+        ]
+    },
+    LEAFY_VILLAGE_EQUIPMENT: {
+        name: 'The Rusty Helm',
+        items: [
+            { id: 'BROADSWORD', price: 180 },
+            { id: 'WOODEN_STAFF', price: 150 },
+            { id: 'LEATHER_TUNIC', price: 100 },
+            { id: 'LEATHER_SHIELD', price: 80 }
+        ]
+    }
+};
+
+const ITEM_DATA = {
+    POTION: { name: 'Potion', type: 'consumable', maxStack: 9, description: 'Restores 50 HP', effect: 'heal', value: 50 },
+    ETHER: { name: 'Ether', type: 'consumable', maxStack: 9, description: 'Restores 20 MP', effect: 'restoreMP', value: 20 },
+    ANTIDOTE: { name: 'Antidote', type: 'consumable', maxStack: 9, description: 'Cures POISON', effect: 'curePoison' },
+    PHOENIX_DOWN: { name: 'Phoenix Down', type: 'consumable', maxStack: 9, description: 'Revives with 1 HP', effect: 'revive' }
+};
+
+// ===== NARRATIVE & SCENE DATA =====
+const SCENES = {
+    AWAKENING: {
+        id: 'AWAKENING',
+        location: 'INN_ROOM',
+        music: 'inn_theme',
+        dialogue: [
+            { speaker: 'Leo', text: "What the... this isn't my room. Where's my PC?" },
+            { speaker: 'Eliza', text: 'Leo. Don\'t panic. But I think... I think we\'re in Chrono-Fantasy 7.' },
+            { speaker: 'Leo', text: 'In what? The SNES game? That\'s impossible. We were just... on the couch.' },
+            { speaker: 'Leo', text: 'This has to be a dream.', action: 'pinch' },
+            { speaker: 'System', text: 'STATUS: NORMAL' },
+            { speaker: 'Leo', text: '...', action: 'look_at_hands' },
+            { speaker: 'System', text: 'LEO: HP 70/70 MP 25/25' },
+            { speaker: 'Eliza', text: 'See? We have a UI. We\'re in the game. We must have gotten pulled in when we booted up the console.' },
+            { speaker: 'Leo', text: 'How do I skip this? Where\'s the \'Start\' button? Where\'s the menu? How do I quit?' },
+            { speaker: 'Eliza', text: 'I\'ve tried. It doesn\'t work. The game is in a cutscene. We are in a cutscene. And there\'s only one way to end an RPG, Leo.' },
+            { speaker: 'Leo', text: '...You don\'t mean.' },
+            { speaker: 'Eliza', text: 'We have to beat it. From the inside.' },
+            { speaker: 'Innkeeper', text: 'Ah, you\'re finally awake!' },
+            { speaker: 'Innkeeper', text: 'You must hurry! The great \'Inciting Incident Festival\' is about to begin!' },
+            { speaker: 'Leo', text: '...That guy just... slid. And... \'The Inciting Incident Festival\'?' },
+            { speaker: 'Eliza', text: 'That\'s our cue. We\'re the Tragic Protagonists, or at least we\'re expected to be. Let\'s go.' },
+            { speaker: 'Leo', text: 'I am not tragic. And I am not a protagonist.' }
+        ]
+    },
+    THE_INCIDENT: {
+        id: 'THE_INCIDENT',
+        location: 'TOWN_SQUARE',
+        music: 'town_theme',
+        dialogue: [
+            { speaker: 'Town Elder', text: '...and so, with the Crystal\'s blessing, we ensure another year of peaceful...!' },
+            { speaker: 'Leo', text: '...An airship. Of course. Impossibly advanced, dark metal, glowing red lights... From the \'High-Tech Empire from one town over.\'' },
+            { speaker: 'General Kage', text: 'Fools! Your pitiful festival is over! I, General Kage of the Zetrulan Empire, am here for your Crystal!' },
+            { speaker: 'Blayde', text: 'I... I don\'t know who I am... or how I got here... My head... a memory? No, it\'s gone... but I know that what you\'re doing is WRONG!' },
+            { speaker: 'Serapha', text: 'The Prophecy... It\'s you! The amnesiac warrior from the sky!' },
+            { speaker: 'Eliza', text: '(Whispering) Okay. There\'s our actual protagonist. The amnesiac one. And there\'s the healer/love-interest. They\'re a set.' },
+            { speaker: 'Leo', text: '(Whispering) Good. Let them handle it. We just need to stay out of the cutscene.' },
+            { speaker: 'General Kage', text: 'Insolent child! You dare oppose me? Then you will be the first to die!' },
+            { speaker: 'System', text: 'BATTLE START - GENERAL KAGE' },
+            { speaker: 'Leo', text: 'Wait, what? We\'re in the party?! We\'re not even in the cutscene!' },
+            { speaker: 'Eliza', text: 'We got pulled in! Just... \'Defend\'!' }
+        ]
+    },
+    POST_BATTLE: {
+        id: 'POST_BATTLE',
+        location: 'TOWN_SQUARE',
+        dialogue: [
+            { speaker: 'Leo', text: '...We\'re dead. We died. I knew it.' },
+            { speaker: 'Eliza', text: 'No... look. It was an unwinnable fight. A story boss. Hmph. Cheap.' },
+            { speaker: 'General Kage', text: 'This is but the first of the Seven Crystals! Soon, the Emperor will awaken the great Demon God, and we shall rule this pathetic world! Next, I\'ll check the Ice Cave and the Volcano!' },
+            { speaker: 'Leo', text: '(Muttering) He\'s not just telling us the whole plot, he\'s giving us the walkthrough.' },
+            { speaker: 'Blayde', text: 'No... He got away... I... I must stop him! I must go to the... uh...' },
+            { speaker: 'Town Elder', text: '(Helpfully) The airship flew north, toward the \'Dungeon of the First Trial,\' which is also known as the \'Cavern of Whispers\'!' },
+            { speaker: 'Blayde', text: '...Right! The Cavern of Whispers! I go now!' },
+            { speaker: 'Blayde', text: 'You two. You have the hearts of warriors. You withstood the General\'s ultimate attack! Will you join me?' },
+            { speaker: 'Leo', text: 'Absolutely not. We \'withstood\' nothing. That was a scripted event. I\'m going to find a way to hack the save file.' },
+            { speaker: 'Eliza', text: 'We would be honored, Blayde. We must stop this... great evil.' },
+            { speaker: 'System', text: 'LEO takes 1 DMG' },
+            { speaker: 'System', text: 'BLAYDE joined the party!' },
+            { speaker: 'System', text: 'SERAPHA joined the party!' },
+            { speaker: 'Eliza', text: '(To Leo) Right. Before we go to that cave, we hit the shop. We are not fighting with our bare hands again.' },
+            { speaker: 'Leo', text: 'Fine. But I am not grinding for 100 hours. And if I see one talking animal mascot, I\'m quitting.' },
+            { speaker: 'Eliza', text: 'That\'s probably Act 2, Leo. Just... just try to keep up. We need to beat the final boss. How hard can it be?' }
+        ]
+    }
+};
+
+const NPC_DATA = {
+    INNKEEPER: {
+        name: 'Innkeeper',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['A good rest sharpens the mind! Stay the night for 10 Gil?'],
+        sprite: 'innkeeper'
+    },
+    WANDERING_NPC_1: {
+        name: 'Villager',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['The item shop has new Potions in stock!'],
+        sprite: 'villager',
+        wanders: true
+    },
+    HOMEOWNER: {
+        name: 'Homeowner',
+        location: 'LEAFY_VILLAGE',
+        dialogue: [
+            'Welcome to Leafyvillage! The weather is lovely today.',
+            'I heard a rumor that monsters are coming back.'
+        ],
+        sprite: 'villager'
+    },
+    TOWN_ELDER: {
+        name: 'Town Elder',
+        location: 'TOWN_SQUARE',
+        dialogue: ['The Crystal has protected our village for generations...'],
+        sprite: 'elder'
+    },
+    SHOPKEEPER: {
+        name: 'Shopkeeper',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['Welcome! Potions and remedies for the weary traveler!'],
+        sprite: 'shopkeeper'
+    },
+    BLACKSMITH: {
+        name: 'Blacksmith',
+        location: 'LEAFY_VILLAGE',
+        dialogue: ['You won\'t survive long with that flimsy gear. Take a look.'],
+        sprite: 'blacksmith'
+    }
+};
+
+const ABILITIES = {
+    // Blayde's Abilities
+    FIRE_SLASH: {
+        name: 'Fire Slash',
+        cost: 8,
+        type: 'ability',
+        target: 'enemy',
+        effect: (user, target) => {
+            const baseDamage = user.stats.STR * 1.5;
+            const damage = Math.floor(baseDamage + Math.random() * 10);
+            target.takeDamage(damage);
+            return `${user.name} uses Fire Slash for ${damage} damage!`;
+        }
+    },
+    HEADSTRONG: {
+        name: 'Headstrong',
+        type: 'passive',
+        effect: () => Math.random() < 0.1 // 10% chance to ignore override
+    },
+    
+    // Serapha's Abilities
+    HEAL: {
+        name: 'Heal',
+        cost: 4,
+        type: 'magic',
+        target: 'ally',
+        effect: (user, target) => {
+            const healAmount = Math.floor(user.stats.MND * 1.5 + 20);
+            target.heal(healAmount);
+            return `${user.name} casts Heal! ${target.name} recovers ${healAmount} HP!`;
+        }
+    },
+    CURE_POISON: {
+        name: 'CurePoison',
+        cost: 3,
+        type: 'magic',
+        target: 'ally',
+        effect: (user, target) => {
+            target.removeStatus('POISON');
+            return `${user.name} casts CurePoison! ${target.name}'s poison is cured!`;
+        }
+    },
+    PROTECT: {
+        name: 'Protect',
+        cost: 6,
+        type: 'magic',
+        target: 'ally',
+        effect: (user, target) => {
+            target.addStatus('PROTECT', 3);
+            return `${user.name} casts Protect! ${target.name}'s defense increases!`;
+        }
+    },
+    PRAYER: {
+        name: 'Prayer',
+        type: 'passive',
+        effect: () => Math.random() < 0.15 // 15% chance when defending
+    },
+    
+    // Leo's Abilities
+    OVERRIDE: {
+        name: 'Override',
+        cost: 0,
+        type: 'special',
+        target: 'ally',
+        effect: (user, target) => {
+            return `${user.name} prepares to override ${target.name}'s action!`;
+        }
+    },
+    USE_POTION: {
+        name: 'Use Potion',
+        cost: 0,
+        type: 'item',
+        target: 'ally',
+        effect: (user, target, game) => {
+            if (game.inventory.useItem('POTION')) {
+                const healAmount = 50;
+                target.heal(healAmount);
+                return `${user.name} uses a Potion! ${target.name} recovers ${healAmount} HP!`;
+            }
+            return `No Potions available!`;
+        }
+    },
+    
+    // Eliza's Abilities
+    SCAN: {
+        name: 'Scan',
+        cost: 5,
+        type: 'magic',
+        target: 'enemy',
+        effect: (user, target) => {
+            target.scanned = true;
+            return `${user.name} scans ${target.name}!\nHP: ${target.stats.hp}/${target.stats.maxHp}\nWeakness: Fire`;
+        }
+    }
+};
+
+// ===== CHARACTER CLASS =====
+class Character {
+    constructor(data) {
+        this.name = data.name;
+        this.level = data.level || 1;
+        this.controlType = data.controlType; // 'AI' or 'PLAYER'
+        this.archetype = data.archetype;
+        this.exp = data.exp || 0;
+        this.expToNext = this.calculateExpToNext();
+        
+        this.stats = {
+            hp: data.hp,
+            maxHp: data.maxHp,
+            mp: data.mp,
+            maxMp: data.maxMp,
+            STR: data.STR,
+            DEF: data.DEF,
+            INT: data.INT,
+            MND: data.MND,
+            SPD: data.SPD
+        };
+        
+        this.baseStats = { ...this.stats };
+        this.statusEffects = {};
+        this.abilities = data.abilities || [];
+        this.equipment = {
+            weapon: data.equipment?.weapon || null,
+            armor: data.equipment?.armor || null,
+            accessory: data.equipment?.accessory || null
+        };
+        
+        this.aiLogic = data.aiLogic || null;
+        this.scanned = false;
+        this.isDefending = false;
+        this.overrideAction = null; // For Override command
+    }
+    
+    calculateExpToNext() {
+        return this.level * 100; // Simple formula
+    }
+    
+    gainExp(amount) {
+        this.exp += amount;
+        const messages = [];
+        
+        while (this.exp >= this.expToNext) {
+            this.exp -= this.expToNext;
+            this.levelUp();
+            messages.push(`${this.name} reached Level ${this.level}!`);
+        }
+        
+        return messages;
+    }
+    
+    levelUp() {
+        this.level++;
+        
+        // Stat increases based on archetype
+        const growthRates = {
+            'HERO': { maxHp: 10, maxMp: 2, STR: 5, DEF: 3, INT: 1, MND: 1, SPD: 2 },
+            'HEALER': { maxHp: 5, maxMp: 8, STR: 1, DEF: 2, INT: 2, MND: 5, SPD: 3 },
+            'REALIST': { maxHp: 8, maxMp: 3, STR: 3, DEF: 5, INT: 2, MND: 2, SPD: 2 },
+            'STRATEGIST': { maxHp: 6, maxMp: 5, STR: 2, DEF: 3, INT: 5, MND: 4, SPD: 3 }
+        };
+        
+        const growth = growthRates[this.archetype];
+        this.stats.maxHp += growth.maxHp;
+        this.stats.maxMp += growth.maxMp;
+        this.stats.STR += growth.STR;
+        this.stats.DEF += growth.DEF;
+        this.stats.INT += growth.INT;
+        this.stats.MND += growth.MND;
+        this.stats.SPD += growth.SPD;
+        
+        // Full heal on level up
+        this.stats.hp = this.stats.maxHp;
+        this.stats.mp = this.stats.maxMp;
+        
+        this.expToNext = this.calculateExpToNext();
+    }
+    
+    takeDamage(amount) {
+        // Apply DEF modifier
+        let actualDamage = amount;
+        if (this.statusEffects.PROTECT) {
+            actualDamage = Math.floor(amount / 1.5);
+        }
+        actualDamage = Math.max(1, Math.floor(actualDamage * (100 / (100 + this.stats.DEF))));
+        
+        this.stats.hp = Math.max(0, this.stats.hp - actualDamage);
+        return actualDamage;
+    }
+    
+    heal(amount) {
+        const actualHeal = Math.min(amount, this.stats.maxHp - this.stats.hp);
+        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + amount);
+        return actualHeal;
+    }
+    
+    addStatus(statusName, duration = 3) {
+        this.statusEffects[statusName] = {
+            duration: duration,
+            turnsRemaining: duration
+        };
+    }
+    
+    removeStatus(statusName) {
+        delete this.statusEffects[statusName];
+    }
+    
+    hasStatus(statusName) {
+        return !!this.statusEffects[statusName];
+    }
+    
+    updateStatusEffects() {
+        const messages = [];
+        
+        // Process status effects
+        if (this.hasStatus('POISON')) {
+            const damage = Math.floor(this.stats.maxHp * 0.05);
+            this.stats.hp = Math.max(0, this.stats.hp - damage);
+            messages.push(`${this.name} takes ${damage} damage from POISON!`);
+        }
+        
+        if (this.hasStatus('REGEN')) {
+            const heal = Math.floor(this.stats.maxHp * 0.05);
+            this.heal(heal);
+            messages.push(`${this.name} recovers ${heal} HP from REGEN!`);
+        }
+        
+        // Decrease durations (except persistent effects)
+        for (const [status, data] of Object.entries(this.statusEffects)) {
+            if (!STATUS_EFFECTS[status]?.persistent) {
+                data.turnsRemaining--;
+                if (data.turnsRemaining <= 0) {
+                    delete this.statusEffects[status];
+                    messages.push(`${this.name}'s ${status} wore off!`);
+                }
+            }
+        }
+        
+        return messages;
+    }
+    
+    canAct() {
+        if (this.stats.hp <= 0) return false;
+        if (this.hasStatus('SLEEP')) return false;
+        if (this.hasStatus('PARALYSIS')) {
+            return Math.random() > 0.5; // 50% chance to act
+        }
+        return true;
+    }
+    
+    getAvailableAbilities() {
+        return this.abilities.filter(abilityName => {
+            const ability = ABILITIES[abilityName];
+            if (!ability) return false;
+            if (ability.cost > this.stats.mp) return false;
+            return true;
+        });
+    }
+}
+
+// ===== AI LOGIC =====
+class BlaydeAI {
+    static decideAction(character, allies, enemies, game) {
+        // Blayde's "Artificial Stupidity"
+        // 1. Check if he has enough MP for Fire Slash (his "impressive" ability)
+        if (character.stats.mp >= 8 && character.abilities.includes('FIRE_SLASH')) {
+            return {
+                action: 'ability',
+                ability: 'FIRE_SLASH',
+                target: enemies[Math.floor(Math.random() * enemies.length)]
+            };
+        }
+        
+        // 2. Default: Random attack
+        return {
+            action: 'attack',
+            target: enemies[Math.floor(Math.random() * enemies.length)]
+        };
+    }
+}
+
+class SeraphaAI {
+    static decideAction(character, allies, enemies, game) {
+        // Serapha's inefficient healing AI
+        
+        // Check if defending and prayer passive triggers
+        if (character.isDefending && ABILITIES.PRAYER.effect()) {
+            return { action: 'pray' }; // Waste turn "praying"
+        }
+        
+        // Try to heal - but inefficiently
+        // Start from top of party list
+        for (const ally of allies) {
+            if (ally.stats.hp < ally.stats.maxHp) {
+                // Will heal even if just 1 HP missing
+                if (character.stats.mp >= 4) {
+                    return {
+                        action: 'ability',
+                        ability: 'HEAL',
+                        target: ally
+                    };
+                }
+            }
+        }
+        
+        // Try to cast Protect on Blayde (repeatedly, even if it doesn't stack)
+        const blayde = allies.find(a => a.name === 'Blayde');
+        if (blayde && character.stats.mp >= 6) {
+            return {
+                action: 'ability',
+                ability: 'PROTECT',
+                target: blayde
+            };
+        }
+        
+        // Default: Defend
+        return { action: 'defend' };
+    }
+}
+
+// ===== INVENTORY SYSTEM =====
+class Inventory {
+    constructor() {
+        this.maxSlots = 20;
+        this.items = {
+            POTION: { ...ITEM_DATA.POTION, count: 5 },
+            ETHER: { ...ITEM_DATA.ETHER, count: 2 },
+            ANTIDOTE: { ...ITEM_DATA.ANTIDOTE, count: 3 },
+            PHOENIX_DOWN: { ...ITEM_DATA.PHOENIX_DOWN, count: 1 }
+        };
+        
+        this.equipment = {}; // Stores owned equipment pieces
+        this.keyItems = [];
+    }
+    
+    getItemCount(itemId) {
+        return this.items[itemId]?.count || 0;
+    }
+    
+    hasItem(itemId) {
+        return (this.items[itemId] && this.items[itemId].count > 0) || 
+               (this.equipment[itemId] && this.equipment[itemId].count > 0);
+    }
+    
+    useItem(itemId) {
+        if (this.items[itemId] && this.items[itemId].count > 0) {
+            this.items[itemId].count--;
+            if (this.items[itemId].count === 0) {
+                delete this.items[itemId];
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    addItem(itemId, count = 1) {
+        const itemData = ITEM_DATA[itemId];
+        if (itemData) {
+            if (!this.items[itemId]) {
+                this.items[itemId] = { ...itemData, count: 0 };
+            }
+            this.items[itemId].count = Math.min(
+                this.items[itemId].count + count,
+                itemData.maxStack
+            );
+            return true;
+        }
+        return false;
+    }
+    
+    addEquipment(equipId, count = 1) {
+        const equipData = EQUIPMENT_DATA[equipId];
+        if (equipData) {
+            if (!this.equipment[equipId]) {
+                this.equipment[equipId] = { ...equipData, count: 0 };
+            }
+            this.equipment[equipId].count += count;
+            return true;
+        }
+        return false;
+    }
+    
+    removeEquipment(equipId) {
+        if (this.equipment[equipId] && this.equipment[equipId].count > 0) {
+            this.equipment[equipId].count--;
+            if (this.equipment[equipId].count === 0) {
+                delete this.equipment[equipId];
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    getTotalItemCount() {
+        let count = 0;
+        for (const item of Object.values(this.items)) {
+            count += 1; // Each stack counts as 1 slot
+        }
+        for (const equip of Object.values(this.equipment)) {
+            count += equip.count; // Each equipment piece is 1 slot
+        }
+        return count;
+    }
+}
+
+// ===== BATTLE SYSTEM =====
+class BattleSystem {
+    constructor(game, party, enemies) {
+        this.game = game;
+        this.party = party;
+        this.enemies = enemies;
+        this.turnOrder = [];
+        this.currentTurnIndex = 0;
+        this.battleLog = [];
+        this.state = 'TURN_START'; // TURN_START, SELECTING_ACTION, EXECUTING, BATTLE_END
+        this.currentCharacter = null;
+        this.selectedAction = null;
+        this.playerActionQueue = null;
+        this.waitingForPlayer = false;
+    }
+    
+    start() {
+        this.addLog('Battle Start!');
+        this.calculateTurnOrder();
+        this.nextTurn();
+    }
+    
+    calculateTurnOrder() {
+        this.turnOrder = [...this.party, ...this.enemies]
+            .filter(char => char.stats.hp > 0)
+            .sort((a, b) => {
+                let aSpeed = a.stats.SPD;
+                let bSpeed = b.stats.SPD;
+                
+                if (a.hasStatus('HASTE')) aSpeed *= 1.5;
+                if (b.hasStatus('HASTE')) bSpeed *= 1.5;
+                
+                return bSpeed - aSpeed;
+            });
+    }
+    
+    nextTurn() {
+        // Check win/lose conditions
+        if (this.enemies.every(e => e.stats.hp <= 0)) {
+            this.endBattle('victory');
+            return;
+        }
+        if (this.party.every(p => p.stats.hp <= 0)) {
+            this.endBattle('defeat');
+            return;
+        }
+        
+        // Move to next character
+        do {
+            this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
+            this.currentCharacter = this.turnOrder[this.currentTurnIndex];
+            
+            // Skip dead characters
+            if (this.currentCharacter.stats.hp <= 0) {
+                continue;
+            }
+            
+            // Process status effects at start of turn
+            const statusMessages = this.currentCharacter.updateStatusEffects();
+            statusMessages.forEach(msg => this.addLog(msg));
+            
+            // Check if character can act
+            if (!this.currentCharacter.canAct()) {
+                if (this.currentCharacter.hasStatus('SLEEP')) {
+                    this.addLog(`${this.currentCharacter.name} is asleep!`);
+                } else if (this.currentCharacter.hasStatus('PARALYSIS')) {
+                    this.addLog(`${this.currentCharacter.name} is paralyzed!`);
+                }
+                continue;
+            }
+            
+            break;
+        } while (true);
+        
+        // Reset defending state
+        this.currentCharacter.isDefending = false;
+        
+        // Determine action based on control type
+        if (this.currentCharacter.controlType === 'PLAYER') {
+            this.waitForPlayerInput();
+        } else {
+            this.executeAITurn();
+        }
+    }
+    
+    waitForPlayerInput() {
+        this.waitingForPlayer = true;
+        this.state = 'SELECTING_ACTION';
+        this.game.showBattleMenu(this.currentCharacter);
+    }
+    
+    executeAITurn() {
+        this.waitingForPlayer = false;
+        const allies = this.party;
+        const enemies = this.enemies;
+        
+        let action;
+        
+        // Check if there's an override action
+        if (this.currentCharacter.overrideAction) {
+            action = this.currentCharacter.overrideAction;
+            this.currentCharacter.overrideAction = null;
+            this.addLog(`[OVERRIDE] ${this.currentCharacter.name}'s action is controlled!`);
+            
+            // Check Headstrong passive (Blayde only)
+            if (this.currentCharacter.name === 'Blayde' && 
+                this.currentCharacter.abilities.includes('HEADSTRONG') && 
+                ABILITIES.HEADSTRONG.effect()) {
+                this.addLog(`${this.currentCharacter.name} ignores the override! (Headstrong)`);
+                action = null;
+            }
+        }
+        
+        // If no override or override was ignored, use AI
+        if (!action) {
+            if (this.currentCharacter.name === 'Blayde') {
+                action = BlaydeAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+            } else if (this.currentCharacter.name === 'Serapha') {
+                action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+            } else {
+                // Enemy AI - simple attack
+                action = {
+                    action: 'attack',
+                    target: allies[Math.floor(Math.random() * allies.filter(a => a.stats.hp > 0).length)]
+                };
+            }
+        }
+        
+        this.executeAction(action);
+        
+        setTimeout(() => {
+            this.nextTurn();
+        }, 1500);
+    }
+    
+    executePlayerAction(action) {
+        this.waitingForPlayer = false;
+        this.executeAction(action);
+        
+        setTimeout(() => {
+            this.nextTurn();
+        }, 1500);
+    }
+    
+    executeAction(action) {
+        const actor = this.currentCharacter;
+        
+        if (action.action === 'attack') {
+            const damage = Math.floor(actor.stats.STR * 0.8 + Math.random() * 10);
+            const actualDamage = action.target.takeDamage(damage);
+            this.addLog(`${actor.name} attacks ${action.target.name} for ${actualDamage} damage!`);
+            
+            // Wake up sleeping targets
+            if (action.target.hasStatus('SLEEP')) {
+                action.target.removeStatus('SLEEP');
+                this.addLog(`${action.target.name} wakes up!`);
+            }
+        } else if (action.action === 'defend') {
+            actor.isDefending = true;
+            this.addLog(`${actor.name} defends!`);
+        } else if (action.action === 'ability') {
+            const ability = ABILITIES[action.ability];
+            if (ability && actor.stats.mp >= ability.cost) {
+                actor.stats.mp -= ability.cost;
+                const message = ability.effect(actor, action.target, this.game);
+                this.addLog(message);
+            }
+        } else if (action.action === 'pray') {
+            this.addLog(`${actor.name} prays... (nothing happens)`);
+        } else if (action.action === 'override') {
+            // Set override for target
+            action.target.overrideAction = action.overrideAction;
+            this.addLog(`${actor.name} will control ${action.target.name}'s next action!`);
+        }
+    }
+    
+    addLog(message) {
+        this.battleLog.push(message);
+        if (this.battleLog.length > 10) {
+            this.battleLog.shift();
+        }
+    }
+    
+    endBattle(result) {
+        this.state = 'BATTLE_END';
+        
+        if (result === 'victory') {
+            this.addLog('Victory!');
+            
+            // Award EXP
+            const totalExp = this.enemies.reduce((sum, enemy) => sum + (enemy.expReward || 50), 0);
+            this.party.forEach(member => {
+                if (member.stats.hp > 0) {
+                    const levelUpMessages = member.gainExp(totalExp);
+                    levelUpMessages.forEach(msg => this.addLog(msg));
+                }
+            });
+            
+            // Clear non-persistent status effects
+            this.party.forEach(member => {
+                for (const status in member.statusEffects) {
+                    if (!STATUS_EFFECTS[status]?.persistent) {
+                        delete member.statusEffects[status];
+                    }
+                }
+            });
+            
+            setTimeout(() => {
+                this.game.endBattle('victory');
+            }, 3000);
+        } else {
+            this.addLog('Defeat...');
+            setTimeout(() => {
+                this.game.endBattle('defeat');
+            }, 3000);
+        }
+    }
+}
+
+// ===== DIALOGUE & CUTSCENE SYSTEM =====
+class DialogueSystem {
+    constructor(game) {
+        this.game = game;
+        this.currentScene = null;
+        this.currentDialogueIndex = 0;
+        this.isActive = false;
+        this.dialogueBox = document.getElementById('dialogue-box');
+        this.dialogueText = document.getElementById('dialogue-text');
+    }
+    
+    startScene(sceneId) {
+        const scene = SCENES[sceneId];
+        if (!scene) return false;
+        
+        this.currentScene = scene;
+        this.currentDialogueIndex = 0;
+        this.isActive = true;
+        this.showNextDialogue();
+        return true;
+    }
+    
+    showNextDialogue() {
+        if (!this.currentScene || this.currentDialogueIndex >= this.currentScene.dialogue.length) {
+            this.endScene();
+            return;
+        }
+        
+        const dialogue = this.currentScene.dialogue[this.currentDialogueIndex];
+        let displayText = '';
+        
+        if (dialogue.speaker === 'System') {
+            displayText = `[${dialogue.text}]`;
+        } else if (dialogue.text.includes('(Whispering)') || dialogue.text.includes('(Muttering)') || dialogue.text.includes('(To Leo)') || dialogue.text.includes('(Helpfully)')) {
+            displayText = `${dialogue.speaker}: ${dialogue.text}`;
+        } else {
+            displayText = `${dialogue.speaker}: "${dialogue.text}"`;
+        }
+        
+        this.dialogueText.textContent = displayText;
+        this.dialogueBox.classList.remove('hidden');
+    }
+    
+    advance() {
+        if (!this.isActive) return;
+        
+        this.currentDialogueIndex++;
+        this.showNextDialogue();
+    }
+    
+    endScene() {
+        this.isActive = false;
+        this.dialogueBox.classList.add('hidden');
+        this.currentScene = null;
+        this.currentDialogueIndex = 0;
+        
+        // Trigger post-scene events
+        if (this.game) {
+            this.game.onSceneEnd();
+        }
+    }
+    
+    skip() {
+        this.endScene();
+    }
+}
+
+// ===== MAIN GAME CLASS =====
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
+        
+        this.state = 'TITLE'; // TITLE, OVERWORLD, BATTLE, MENU
+        this.keys = {};
+        
+        this.initGame();
+        this.setupEventListeners();
+        this.gameLoop();
+    }
+    
+    initGame() {
+        // Initialize party - Start with Leo and Eliza only (narrative will add Blayde and Serapha)
+        this.party = [
+            new Character({
+                name: 'Leo',
+                level: 5,
+                controlType: 'PLAYER',
+                archetype: 'REALIST',
+                hp: 70, maxHp: 70,
+                mp: 25, maxMp: 25,
+                STR: 18, DEF: 22, INT: 12, MND: 12, SPD: 14,
+                abilities: ['OVERRIDE', 'USE_POTION']
+            }),
+            new Character({
+                name: 'Eliza',
+                level: 5,
+                controlType: 'PLAYER',
+                archetype: 'STRATEGIST',
+                hp: 60, maxHp: 60,
+                mp: 30, maxMp: 30,
+                STR: 14, DEF: 16, INT: 22, MND: 20, SPD: 16,
+                abilities: ['OVERRIDE', 'SCAN']
+            })
+        ];
+        
+        // Store Blayde and Serapha for later recruitment
+        this.blaydeCharacter = new Character({
+            name: 'Blayde',
+            level: 5,
+            controlType: 'AI',
+            archetype: 'HERO',
+            hp: 80, maxHp: 80,
+            mp: 20, maxMp: 20,
+            STR: 25, DEF: 15, INT: 5, MND: 5, SPD: 15,
+            abilities: ['FIRE_SLASH', 'HEADSTRONG'],
+            aiLogic: BlaydeAI
+        });
+        
+        this.seraphaCharacter = new Character({
+            name: 'Serapha',
+            level: 5,
+            controlType: 'AI',
+            archetype: 'HEALER',
+            hp: 50, maxHp: 50,
+            mp: 40, maxMp: 40,
+            STR: 8, DEF: 10, INT: 12, MND: 25, SPD: 18,
+            abilities: ['HEAL', 'CURE_POISON', 'PROTECT', 'PRAYER'],
+            aiLogic: SeraphaAI
+        });
+        
+        this.inventory = new Inventory();
+        this.battle = null;
+        
+        // Game tracking
+        this.gil = 500; // Starting money
+        this.startTime = Date.now();
+        this.playTime = 0; // in seconds
+        
+        // Narrative tracking
+        this.currentStoryPhase = 'AWAKENING'; // AWAKENING, TOWN_EXPLORATION, INCIDENT, POST_INCIDENT
+        this.hasSeenAwakening = false;
+        this.hasSeenIncident = false;
+        
+        // Dialogue system
+        this.dialogueSystem = new DialogueSystem(this);
+        
+        // Overworld
+        this.player = {
+            x: 400,
+            y: 300,
+            direction: 'down',
+            speed: 2.5
+        };
+        
+        this.encounterTimer = 0;
+        this.titleBlink = 0;
+        this.menuState = null;
+    }
+    
+    setupEventListeners() {
+        document.addEventListener('keydown', (e) => {
+            this.keys[e.key] = true;
+            
+            if (e.key === 'Enter') {
+                // Advance dialogue if active
+                if (this.dialogueSystem.isActive) {
+                    this.dialogueSystem.advance();
+                } else if (this.state === 'TITLE') {
+                    this.state = 'CUTSCENE';
+                    // Start with the awakening scene
+                    setTimeout(() => {
+                        this.dialogueSystem.startScene('AWAKENING');
+                    }, 500);
+                }
+            }
+            
+            if (e.key === 'm' || e.key === 'M') {
+                if (this.state === 'OVERWORLD' && !this.dialogueSystem.isActive) {
+                    this.openMenu();
+                }
+            }
+            
+            if (e.key === 'Escape') {
+                if (this.state === 'MENU') {
+                    this.closeMenu();
+                } else if (this.dialogueSystem.isActive) {
+                    // Allow skipping cutscenes with Escape
+                    this.dialogueSystem.skip();
+                }
+            }
+            
+            if (e.key === ' ') {
+                // Space bar also advances dialogue
+                if (this.dialogueSystem.isActive) {
+                    this.dialogueSystem.advance();
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            this.keys[e.key] = false;
+        });
+    }
+    
+    onSceneEnd() {
+        // Handle post-scene logic
+        if (this.currentStoryPhase === 'AWAKENING') {
+            this.hasSeenAwakening = true;
+            this.currentStoryPhase = 'TOWN_EXPLORATION';
+            this.state = 'OVERWORLD';
+            this.showMessage('You can now explore Leafy Village. Press M for menu. Walk around to trigger events.');
+        } else if (this.currentStoryPhase === 'INCIDENT') {
+            this.hasSeenIncident = true;
+            this.currentStoryPhase = 'POST_INCIDENT';
+            // Start the story battle with General Kage
+            this.startStoryBattle();
+        } else if (this.currentStoryPhase === 'POST_INCIDENT') {
+            // Add Blayde and Serapha to the party
+            this.party.push(this.blaydeCharacter);
+            this.party.push(this.seraphaCharacter);
+            this.currentStoryPhase = 'ADVENTURE';
+            this.state = 'OVERWORLD';
+            this.showMessage('Blayde and Serapha joined your party! You can now explore and prepare for the Cavern of Whispers.');
+        }
+    }
+    
+    startStoryBattle() {
+        this.state = 'CUTSCENE';
+        // Show the post-battle dialogue immediately (it's an unwinnable fight)
+        setTimeout(() => {
+            // Add Blayde and Serapha temporarily for the battle
+            const tempParty = [...this.party, this.blaydeCharacter, this.seraphaCharacter];
+            
+            // Simulate the unwinnable battle
+            tempParty.forEach(member => {
+                member.stats.hp = 1; // "Defeated" by story boss
+            });
+            
+            this.dialogueSystem.startScene('POST_BATTLE');
+        }, 1000);
+    }
+    
+    gameLoop() {
+        this.update();
+        this.render();
+        requestAnimationFrame(() => this.gameLoop());
+    }
+    
+    update() {
+        if (this.state === 'OVERWORLD') {
+            this.updateOverworld();
+        }
+    }
+    
+    updateOverworld() {
+        const player = this.player;
+        let moved = false;
+        
+        if (this.keys['ArrowUp']) {
+            player.y -= player.speed;
+            player.direction = 'up';
+            moved = true;
+        }
+        if (this.keys['ArrowDown']) {
+            player.y += player.speed;
+            player.direction = 'down';
+            moved = true;
+        }
+        if (this.keys['ArrowLeft']) {
+            player.x -= player.speed;
+            player.direction = 'left';
+            moved = true;
+        }
+        if (this.keys['ArrowRight']) {
+            player.x += player.speed;
+            player.direction = 'right';
+            moved = true;
+        }
+        
+        // Keep player in bounds
+        player.x = Math.max(32, Math.min(this.width - 32, player.x));
+        player.y = Math.max(32, Math.min(this.height - 32, player.y));
+        
+        // Random encounters
+        if (moved) {
+            this.encounterTimer++;
+            if (this.encounterTimer > 120 && Math.random() < 0.015) {
+                this.startBattle();
+                this.encounterTimer = 0;
+            }
+        }
+    }
+    
+    render() {
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        
+        if (this.state === 'TITLE') {
+            this.renderTitle();
+        } else if (this.state === 'OVERWORLD') {
+            this.renderOverworld();
+        } else if (this.state === 'BATTLE') {
+            this.renderBattle();
+        }
+    }
+    
+    renderTitle() {
+        // Background gradient
+        const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0, '#001a33');
+        gradient.addColorStop(1, '#000000');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Stars
+        for (let i = 0; i < 100; i++) {
+            const x = (i * 37) % this.width;
+            const y = (i * 73) % this.height;
+            const size = (i % 3) + 1;
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + (Math.sin(Date.now() / 1000 + i) + 1) * 0.35})`;
+            this.ctx.fillRect(x, y, size, size);
+        }
+        
+        // Title
+        this.ctx.save();
+        this.ctx.font = 'bold 56px Courier New';
+        this.ctx.textAlign = 'center';
+        
+        // Shadow
+        this.ctx.fillStyle = '#8b0000';
+        this.ctx.fillText('GENERIC JRPG', this.width / 2 + 4, 180 + 4);
+        
+        // Main text
+        this.titleBlink += 0.05;
+        const brightness = Math.sin(this.titleBlink) * 0.3 + 0.7;
+        this.ctx.fillStyle = `rgb(${255 * brightness}, ${215 * brightness}, 0)`;
+        this.ctx.fillText('GENERIC JRPG', this.width / 2, 180);
+        
+        // Subtitle
+        this.ctx.font = '20px Courier New';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText('Proof of Concept - GDD v1.1', this.width / 2, 220);
+        
+        // Instructions
+        this.ctx.font = '16px Courier New';
+        this.ctx.fillStyle = '#aaaaaa';
+        this.ctx.fillText('A game about dealing with terrible AI allies', this.width / 2, 300);
+        
+        // Press Enter
+        if (Math.floor(Date.now() / 500) % 2 === 0) {
+            this.ctx.font = '24px Courier New';
+            this.ctx.fillStyle = '#ffd700';
+            this.ctx.fillText('Press ENTER to Start', this.width / 2, 450);
+        }
+        
+        this.ctx.restore();
+    }
+    
+    renderOverworld() {
+        // Draw enhanced grass field with texture variation (FF6 style)
+        for (let y = 0; y < this.height; y += 16) {
+            for (let x = 0; x < this.width; x += 16) {
+                // Create varied grass pattern
+                const pattern = (x / 16 + y / 16) % 4;
+                let baseColor, accentColor;
+                
+                if (pattern === 0) {
+                    baseColor = '#3a6b1f';
+                    accentColor = '#2d5016';
+                } else if (pattern === 1) {
+                    baseColor = '#2d5016';
+                    accentColor = '#3a6b1f';
+                } else if (pattern === 2) {
+                    baseColor = '#2a4c14';
+                    accentColor = '#3a6b1f';
+                } else {
+                    baseColor = '#335919';
+                    accentColor = '#2d5016';
+                }
+                
+                // Base grass tile
+                this.ctx.fillStyle = baseColor;
+                this.ctx.fillRect(x, y, 16, 16);
+                
+                // Add grass detail pixels (FF6 style)
+                this.ctx.fillStyle = accentColor;
+                const seed = x * 7 + y * 13;
+                if (seed % 3 === 0) {
+                    this.ctx.fillRect(x + 2, y + 3, 2, 3);
+                    this.ctx.fillRect(x + 8, y + 6, 2, 3);
+                    this.ctx.fillRect(x + 12, y + 2, 2, 3);
+                }
+                if (seed % 5 === 0) {
+                    this.ctx.fillRect(x + 5, y + 10, 2, 2);
+                    this.ctx.fillRect(x + 11, y + 11, 2, 2);
+                }
+                
+                // Dark grass blades
+                this.ctx.fillStyle = '#1a3c0f';
+                if (seed % 7 === 0) {
+                    this.ctx.fillRect(x + 3, y + 5, 1, 2);
+                    this.ctx.fillRect(x + 9, y + 8, 1, 2);
+                }
+            }
+        }
+        
+        // Draw detailed dirt paths with texture
+        const pathCenterX = this.width / 2;
+        const pathCenterY = this.height / 2;
+        
+        // Vertical path
+        for (let y = 0; y < this.height; y += 8) {
+            for (let px = pathCenterX - 40; px < pathCenterX + 40; px += 8) {
+                const lightness = (px + y) % 3;
+                if (lightness === 0) {
+                    this.ctx.fillStyle = '#b8956a';
+                } else if (lightness === 1) {
+                    this.ctx.fillStyle = '#a0826d';
+                } else {
+                    this.ctx.fillStyle = '#8b7355';
+                }
+                this.ctx.fillRect(px, y, 8, 8);
+                
+                // Add dirt texture
+                if ((px + y) % 11 === 0) {
+                    this.ctx.fillStyle = '#735d47';
+                    this.ctx.fillRect(px + 2, y + 2, 2, 2);
+                }
+            }
+        }
+        
+        // Horizontal path
+        for (let x = 0; x < this.width; x += 8) {
+            for (let py = pathCenterY - 40; py < pathCenterY + 40; py += 8) {
+                const lightness = (x + py) % 3;
+                if (lightness === 0) {
+                    this.ctx.fillStyle = '#b8956a';
+                } else if (lightness === 1) {
+                    this.ctx.fillStyle = '#a0826d';
+                } else {
+                    this.ctx.fillStyle = '#8b7355';
+                }
+                this.ctx.fillRect(x, py, 8, 8);
+                
+                // Add dirt texture
+                if ((x + py) % 11 === 0) {
+                    this.ctx.fillStyle = '#735d47';
+                    this.ctx.fillRect(x + 2, py + 2, 2, 2);
+                }
+            }
+        }
+        
+        // Draw player
+        this.drawPlayer();
+        
+        // Draw HUD
+        this.drawOverworldHUD();
+    }
+    
+    drawPlayer() {
+        const p = this.player;
+        
+        // Shadow (more detailed)
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(p.x, p.y + 20, 12, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Draw Leo in Chrono Trigger style (more detailed sprite)
+        // Legs
+        this.ctx.fillStyle = '#2c3e50';
+        this.ctx.fillRect(p.x - 8, p.y + 8, 6, 10);
+        this.ctx.fillRect(p.x + 2, p.y + 8, 6, 10);
+        
+        // Boots
+        this.ctx.fillStyle = '#1a1a1a';
+        this.ctx.fillRect(p.x - 8, p.y + 14, 6, 4);
+        this.ctx.fillRect(p.x + 2, p.y + 14, 6, 4);
+        
+        // Body - blue tunic with detail
+        this.ctx.fillStyle = '#3498db';
+        this.ctx.fillRect(p.x - 10, p.y - 6, 20, 14);
+        
+        // Tunic shadows/highlights
+        this.ctx.fillStyle = '#2980b9';
+        this.ctx.fillRect(p.x + 6, p.y - 6, 4, 14);
+        this.ctx.fillStyle = '#5dade2';
+        this.ctx.fillRect(p.x - 10, p.y - 6, 4, 4);
+        
+        // Belt
+        this.ctx.fillStyle = '#8b4513';
+        this.ctx.fillRect(p.x - 10, p.y + 4, 20, 3);
+        
+        // Belt buckle
+        this.ctx.fillStyle = '#ffd700';
+        this.ctx.fillRect(p.x - 2, p.y + 4, 4, 3);
+        
+        // Arms
+        this.ctx.fillStyle = '#ffdbac';
+        this.ctx.fillRect(p.x - 14, p.y - 2, 4, 10);
+        this.ctx.fillRect(p.x + 10, p.y - 2, 4, 10);
+        
+        // Arm highlights
+        this.ctx.fillStyle = '#ffebd4';
+        this.ctx.fillRect(p.x - 14, p.y - 2, 2, 4);
+        this.ctx.fillRect(p.x + 10, p.y - 2, 2, 4);
+        
+        // Neck
+        this.ctx.fillStyle = '#ffdbac';
+        this.ctx.fillRect(p.x - 4, p.y - 8, 8, 4);
+        
+        // Head - more detailed
+        this.ctx.fillStyle = '#ffdbac';
+        this.ctx.fillRect(p.x - 8, p.y - 20, 16, 14);
+        
+        // Face highlights
+        this.ctx.fillStyle = '#ffebd4';
+        this.ctx.fillRect(p.x - 7, p.y - 19, 6, 6);
+        
+        // Face shadows
+        this.ctx.fillStyle = '#e8c4a3';
+        this.ctx.fillRect(p.x + 4, p.y - 16, 4, 10);
+        
+        // Hair - spiky anime style
+        this.ctx.fillStyle = '#654321';
+        // Back hair
+        this.ctx.fillRect(p.x - 8, p.y - 24, 16, 6);
+        // Hair spikes
+        this.ctx.fillRect(p.x - 10, p.y - 26, 4, 4);
+        this.ctx.fillRect(p.x - 4, p.y - 28, 4, 4);
+        this.ctx.fillRect(p.x + 2, p.y - 26, 4, 4);
+        this.ctx.fillRect(p.x + 8, p.y - 24, 4, 4);
+        
+        // Hair highlights
+        this.ctx.fillStyle = '#8b6f47';
+        this.ctx.fillRect(p.x - 6, p.y - 24, 4, 2);
+        this.ctx.fillRect(p.x - 2, p.y - 26, 2, 2);
+        
+        // Eyes
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(p.x - 6, p.y - 14, 3, 3);
+        this.ctx.fillRect(p.x + 3, p.y - 14, 3, 3);
+        
+        // Eye whites
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillRect(p.x - 5, p.y - 13, 1, 1);
+        this.ctx.fillRect(p.x + 4, p.y - 13, 1, 1);
+        
+        // Nose
+        this.ctx.fillStyle = '#e8c4a3';
+        this.ctx.fillRect(p.x, p.y - 11, 2, 2);
+        
+        // Mouth
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(p.x - 2, p.y - 8, 4, 1);
+    }
+    
+    drawOverworldHUD() {
+        // Party status mini-display
+        this.ctx.fillStyle = 'rgba(0, 0, 30, 0.9)';
+        this.ctx.fillRect(10, 10, 200, this.party.length * 30 + 10);
+        
+        this.ctx.font = '12px Courier New';
+        this.party.forEach((member, index) => {
+            const y = 25 + index * 30;
+            const hpPercent = member.stats.hp / member.stats.maxHp;
+            
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillText(`${member.name} Lv${member.level}`, 15, y);
+            
+            // HP bar
+            this.ctx.fillStyle = '#333';
+            this.ctx.fillRect(100, y - 8, 100, 8);
+            this.ctx.fillStyle = hpPercent > 0.5 ? '#0f0' : hpPercent > 0.25 ? '#ff0' : '#f00';
+            this.ctx.fillRect(100, y - 8, 100 * hpPercent, 8);
+            
+            // HP text
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = '10px Courier New';
+            this.ctx.fillText(`${member.stats.hp}/${member.stats.maxHp}`, 105, y - 1);
+        });
+    }
+    
+    renderBattle() {
+        // Battle background
+        const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+        gradient.addColorStop(0, '#4a148c');
+        gradient.addColorStop(1, '#1a0033');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Ground
+        this.ctx.fillStyle = '#3d2817';
+        this.ctx.fillRect(0, this.height - 200, this.width, 200);
+        
+        // Draw characters
+        this.party.forEach((member, index) => {
+            if (member.stats.hp > 0) {
+                this.drawBattleCharacter(120, 250 + index * 80, member, true);
+            }
+        });
+        
+        if (this.battle && this.battle.enemies) {
+            this.battle.enemies.forEach((enemy, index) => {
+                if (enemy.stats.hp > 0) {
+                    this.drawBattleCharacter(600, 200 + index * 100, enemy, false);
+                }
+            });
+        }
+        
+        // Update UI
+        this.updateBattleUI();
+    }
+    
+    drawBattleCharacter(x, y, character, isHero) {
+        // Draw FF6/Chrono Trigger quality battle sprites
+        if (isHero) {
+            // Determine which hero to draw
+            if (character.name === 'Leo') {
+                // Leo - detailed battle sprite
+                // Legs & boots
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillRect(x - 12, y + 10, 10, 14);
+                this.ctx.fillRect(x + 2, y + 10, 10, 14);
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(x - 12, y + 18, 10, 6);
+                this.ctx.fillRect(x + 2, y + 18, 10, 6);
+                
+                // Body - blue tunic
+                this.ctx.fillStyle = '#3498db';
+                this.ctx.fillRect(x - 16, y - 8, 32, 18);
+                this.ctx.fillStyle = '#2980b9';
+                this.ctx.fillRect(x + 8, y - 8, 8, 18);
+                this.ctx.fillStyle = '#5dade2';
+                this.ctx.fillRect(x - 16, y - 8, 8, 6);
+                
+                // Belt
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x - 16, y + 6, 32, 4);
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillRect(x - 3, y + 6, 6, 4);
+                
+                // Arms
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 20, y - 2, 6, 14);
+                this.ctx.fillRect(x + 14, y - 2, 6, 14);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 20, y - 2, 3, 6);
+                this.ctx.fillRect(x + 14, y - 2, 3, 6);
+                
+                // Shield (left arm)
+                this.ctx.fillStyle = '#c0c0c0';
+                this.ctx.fillRect(x - 24, y + 2, 8, 12);
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x - 22, y + 4, 4, 8);
+                
+                // Sword (right arm)
+                this.ctx.fillStyle = '#c0c0c0';
+                this.ctx.fillRect(x + 18, y - 6, 4, 16);
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillRect(x + 17, y + 8, 6, 4);
+                
+                // Neck
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 6, y - 12, 12, 6);
+                
+                // Head
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 11, y - 31, 10, 10);
+                this.ctx.fillStyle = '#e8c4a3';
+                this.ctx.fillRect(x + 6, y - 28, 6, 16);
+                
+                // Hair - spiky
+                this.ctx.fillStyle = '#654321';
+                this.ctx.fillRect(x - 12, y - 38, 24, 8);
+                this.ctx.fillRect(x - 14, y - 40, 6, 6);
+                this.ctx.fillRect(x - 6, y - 42, 6, 6);
+                this.ctx.fillRect(x + 2, y - 40, 6, 6);
+                this.ctx.fillRect(x + 10, y - 38, 6, 6);
+                this.ctx.fillStyle = '#8b6f47';
+                this.ctx.fillRect(x - 10, y - 38, 6, 3);
+                
+                // Eyes
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 8, y - 24, 4, 4);
+                this.ctx.fillRect(x + 4, y - 24, 4, 4);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.fillRect(x - 7, y - 23, 2, 2);
+                this.ctx.fillRect(x + 5, y - 23, 2, 2);
+                
+                // Mouth
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 4, y - 16, 8, 2);
+            } else if (character.name === 'Eliza') {
+                // Eliza - mage style
+                // Robe bottom
+                this.ctx.fillStyle = '#8e44ad';
+                this.ctx.fillRect(x - 14, y + 8, 28, 16);
+                this.ctx.fillStyle = '#9b59b6';
+                this.ctx.fillRect(x - 14, y + 8, 10, 16);
+                
+                // Robe middle
+                this.ctx.fillStyle = '#8e44ad';
+                this.ctx.fillRect(x - 16, y - 8, 32, 16);
+                this.ctx.fillStyle = '#9b59b6';
+                this.ctx.fillRect(x - 16, y - 8, 12, 12);
+                
+                // Belt/sash
+                this.ctx.fillStyle = '#e8b923';
+                this.ctx.fillRect(x - 16, y + 4, 32, 4);
+                
+                // Arms
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 20, y - 2, 6, 12);
+                this.ctx.fillRect(x + 14, y - 2, 6, 12);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 20, y - 2, 3, 5);
+                
+                // Staff (right hand)
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x + 18, y - 12, 3, 28);
+                // Staff orb
+                this.ctx.fillStyle = '#00f';
+                this.ctx.fillRect(x + 16, y - 16, 7, 7);
+                this.ctx.fillStyle = '#88f';
+                this.ctx.fillRect(x + 17, y - 15, 3, 3);
+                
+                // Book (left hand)
+                this.ctx.fillStyle = '#8b4513';
+                this.ctx.fillRect(x - 24, y + 2, 8, 10);
+                this.ctx.fillStyle = '#d4af37';
+                this.ctx.fillRect(x - 23, y + 3, 2, 8);
+                
+                // Neck
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 6, y - 12, 12, 6);
+                
+                // Head
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ffebd4';
+                this.ctx.fillRect(x - 11, y - 31, 10, 10);
+                
+                // Hair - long flowing
+                this.ctx.fillStyle = '#4a235a';
+                this.ctx.fillRect(x - 14, y - 36, 28, 8);
+                this.ctx.fillRect(x - 16, y - 28, 4, 24);
+                this.ctx.fillRect(x + 12, y - 28, 4, 24);
+                this.ctx.fillStyle = '#6c3483';
+                this.ctx.fillRect(x - 12, y - 36, 8, 4);
+                
+                // Eyes
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 8, y - 24, 4, 4);
+                this.ctx.fillRect(x + 4, y - 24, 4, 4);
+                this.ctx.fillStyle = '#9b59b6';
+                this.ctx.fillRect(x - 7, y - 23, 2, 2);
+                this.ctx.fillRect(x + 5, y - 23, 2, 2);
+                
+                // Smile
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(x - 4, y - 16, 2, 2);
+                this.ctx.fillRect(x - 2, y - 15, 4, 2);
+                this.ctx.fillRect(x + 2, y - 16, 2, 2);
+            } else if (character.name === 'Blayde') {
+                // Blayde - warrior with sword
+                // Similar to Leo but with red/orange colors
+                this.ctx.fillStyle = '#c0392b';
+                this.ctx.fillRect(x - 16, y - 8, 32, 18);
+                this.ctx.fillStyle = '#e74c3c';
+                this.ctx.fillRect(x - 16, y - 8, 10, 6);
+                
+                // Big sword
+                this.ctx.fillStyle = '#c0c0c0';
+                this.ctx.fillRect(x + 16, y - 16, 6, 28);
+                this.ctx.fillStyle = '#8b0000';
+                this.ctx.fillRect(x + 15, y + 10, 8, 6);
+                
+                // Similar body structure to Leo
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ff4500';
+                this.ctx.fillRect(x - 14, y - 40, 28, 8);
+            } else if (character.name === 'Serapha') {
+                // Serapha - healer with white robes
+                this.ctx.fillStyle = '#ecf0f1';
+                this.ctx.fillRect(x - 14, y - 8, 28, 24);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.fillRect(x - 14, y - 8, 10, 16);
+                
+                // Pink accents
+                this.ctx.fillStyle = '#ff69b4';
+                this.ctx.fillRect(x - 14, y + 4, 28, 4);
+                
+                // Head with pink hair
+                this.ctx.fillStyle = '#ffdbac';
+                this.ctx.fillRect(x - 12, y - 32, 24, 22);
+                this.ctx.fillStyle = '#ff1493';
+                this.ctx.fillRect(x - 14, y - 38, 28, 8);
+            }
+        } else {
+            // Enhanced enemy sprite - Shadow Beast
+            // Body - dark purple with detail
+            this.ctx.fillStyle = '#4a0e4e';
+            this.ctx.fillRect(x - 24, y - 16, 48, 40);
+            this.ctx.fillStyle = '#5b0f6b';
+            this.ctx.fillRect(x - 20, y - 12, 40, 32);
+            this.ctx.fillStyle = '#350a3a';
+            this.ctx.fillRect(x + 8, y - 12, 16, 32);
+            
+            // Horns - detailed
+            this.ctx.fillStyle = '#ff4500';
+            this.ctx.fillRect(x - 28, y - 28, 8, 4);
+            this.ctx.fillRect(x - 32, y - 36, 6, 8);
+            this.ctx.fillRect(x + 20, y - 28, 8, 4);
+            this.ctx.fillRect(x + 26, y - 36, 6, 8);
+            // Horn highlights
+            this.ctx.fillStyle = '#ff6347';
+            this.ctx.fillRect(x - 30, y - 34, 2, 4);
+            this.ctx.fillRect(x + 28, y - 34, 2, 4);
+            
+            // Glowing eyes - more dramatic
+            this.ctx.fillStyle = '#ff0000';
+            this.ctx.fillRect(x - 18, y - 8, 8, 8);
+            this.ctx.fillRect(x + 10, y - 8, 8, 8);
+            // Eye glow
+            this.ctx.fillStyle = '#ff6666';
+            this.ctx.fillRect(x - 16, y - 6, 4, 4);
+            this.ctx.fillRect(x + 12, y - 6, 4, 4);
+            
+            // Teeth - sharp and menacing
+            this.ctx.fillStyle = '#fff';
+            for (let i = 0; i < 7; i++) {
+                this.ctx.fillRect(x - 22 + i * 6, y + 10, 4, 10);
+                // Add detail to teeth
+                this.ctx.fillStyle = '#f0f0f0';
+                this.ctx.fillRect(x - 21 + i * 6, y + 11, 2, 8);
+                this.ctx.fillStyle = '#fff';
+            }
+            
+            // Claws
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillRect(x - 28, y + 8, 4, 12);
+            this.ctx.fillRect(x + 24, y + 8, 4, 12);
+            this.ctx.fillStyle = '#f0f0f0';
+            this.ctx.fillRect(x - 27, y + 9, 2, 10);
+            this.ctx.fillRect(x + 25, y + 9, 2, 10);
+            
+            // Body texture/scales
+            this.ctx.fillStyle = '#2a0a2e';
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 3; j++) {
+                    this.ctx.fillRect(x - 16 + i * 10, y - 8 + j * 10, 6, 6);
+                }
+            }
+        }
+        
+        // HP bar with more detail
+        const barWidth = 70;
+        const hpPercent = character.stats.hp / character.stats.maxHp;
+        
+        // Bar border
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(x - barWidth / 2 - 2, y - 50, barWidth + 4, 10);
+        
+        // Bar background
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(x - barWidth / 2, y - 48, barWidth, 6);
+        
+        // HP fill with gradient effect
+        const hpColor = hpPercent > 0.5 ? '#0f0' : hpPercent > 0.25 ? '#ff0' : '#f00';
+        const hpDark = hpPercent > 0.5 ? '#0a0' : hpPercent > 0.25 ? '#cc0' : '#a00';
+        
+        for (let i = 0; i < barWidth * hpPercent; i += 2) {
+            this.ctx.fillStyle = i % 4 === 0 ? hpColor : hpDark;
+            this.ctx.fillRect(x - barWidth / 2 + i, y - 48, 2, 6);
+        }
+        
+        // Name with shadow
+        this.ctx.font = 'bold 14px Courier New';
+        this.ctx.fillStyle = '#000';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(character.name, x + 1, y - 56);
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(character.name, x, y - 57);
+    }
+    
+    updateBattleUI() {
+        if (!this.battle) return;
+        
+        // Update party status
+        const partyStatus = document.getElementById('party-status');
+        partyStatus.innerHTML = this.party.map(member => {
+            const hpPercent = (member.stats.hp / member.stats.maxHp) * 100;
+            const mpPercent = (member.stats.mp / member.stats.maxMp) * 100;
+            const controlClass = member.controlType === 'AI' ? 'ai-controlled' : 'player-controlled';
+            const statusText = Object.keys(member.statusEffects).join(', ') || 'None';
+            
+            return `
+                <div class="character-status ${controlClass}">
+                    <div class="character-name">${member.name} [${member.controlType}] Lv${member.level}</div>
+                    <div class="character-hp">
+                        HP: ${member.stats.hp}/${member.stats.maxHp}
+                        <div class="stat-bar">
+                            <div class="stat-fill hp-fill" style="width: ${hpPercent}%"></div>
+                        </div>
+                    </div>
+                    <div class="character-mp">
+                        MP: ${member.stats.mp}/${member.stats.maxMp}
+                        <div class="stat-bar">
+                            <div class="stat-fill mp-fill" style="width: ${mpPercent}%"></div>
+                        </div>
+                    </div>
+                    <div class="character-status-effects">Status: ${statusText}</div>
+                </div>
+            `;
+        }).join('');
+        
+        // Update enemy status
+        const enemyStatus = document.getElementById('enemy-status');
+        if (this.battle.enemies) {
+            enemyStatus.innerHTML = this.battle.enemies.map(enemy => {
+                const hpPercent = (enemy.stats.hp / enemy.stats.maxHp) * 100;
+                const hpDisplay = enemy.scanned ? `${enemy.stats.hp}/${enemy.stats.maxHp}` : '???';
+                
+                return `
+                    <div class="enemy-status">
+                        <div class="character-name">${enemy.name}</div>
+                        <div class="character-hp">
+                            HP: ${hpDisplay}
+                            <div class="stat-bar">
+                                <div class="stat-fill hp-fill" style="width: ${hpPercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Update battle log
+        const battleMessages = document.getElementById('battle-messages');
+        battleMessages.innerHTML = this.battle.battleLog.map(msg => 
+            `<div class="battle-message">${msg}</div>`
+        ).join('');
+        battleMessages.scrollTop = battleMessages.scrollHeight;
+    }
+    
+    startBattle() {
+        this.state = 'BATTLE';
+        document.getElementById('battle-ui').classList.remove('hidden');
+        
+        // Create enemies
+        const enemies = [
+            new Character({
+                name: 'Shadow Beast',
+                level: 4,
+                controlType: 'AI',
+                archetype: 'MONSTER',
+                hp: 60, maxHp: 60,
+                mp: 0, maxMp: 0,
+                STR: 18, DEF: 12, INT: 5, MND: 5, SPD: 14,
+                abilities: [],
+                expReward: 80
+            })
+        ];
+        
+        this.battle = new BattleSystem(this, this.party, enemies);
+        this.battle.start();
+    }
+    
+    showBattleMenu(character) {
+        // Show action menu for player-controlled character
+        const actionMenu = document.getElementById('action-menu');
+        const mainActions = document.getElementById('main-actions');
+        
+        actionMenu.classList.remove('hidden');
+        
+        const actions = ['Attack', 'Ability', 'Item', 'Defend'];
+        if (character.abilities.includes('OVERRIDE')) {
+            actions.splice(1, 0, 'Override');
+        }
+        
+        mainActions.innerHTML = actions.map(action => 
+            `<div class="menu-option" data-action="${action.toLowerCase()}">${action}</div>`
+        ).join('');
+        
+        // Add click handlers
+        mainActions.querySelectorAll('.menu-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const action = option.dataset.action;
+                this.handleBattleMenuSelection(action, character);
+            });
+        });
+    }
+    
+    handleBattleMenuSelection(action, character) {
+        if (action === 'attack') {
+            this.selectTarget(character, 'enemy', (target) => {
+                this.battle.executePlayerAction({ action: 'attack', target });
+                document.getElementById('action-menu').classList.add('hidden');
+            });
+        } else if (action === 'defend') {
+            this.battle.executePlayerAction({ action: 'defend' });
+            document.getElementById('action-menu').classList.add('hidden');
+        } else if (action === 'ability') {
+            this.showAbilityMenu(character);
+        } else if (action === 'override') {
+            this.showOverrideMenu(character);
+        } else if (action === 'item') {
+            alert('Item menu not yet implemented!');
+            document.getElementById('action-menu').classList.add('hidden');
+            this.battle.executePlayerAction({ action: 'defend' });
+        }
+    }
+    
+    showAbilityMenu(character) {
+        document.getElementById('action-menu').classList.add('hidden');
+        const abilityMenu = document.getElementById('ability-menu');
+        const abilityOptions = document.getElementById('ability-options');
+        
+        abilityMenu.classList.remove('hidden');
+        
+        const availableAbilities = character.getAvailableAbilities();
+        abilityOptions.innerHTML = availableAbilities.map(abilityName => {
+            const ability = ABILITIES[abilityName];
+            return `
+                <div class="menu-option" data-ability="${abilityName}">
+                    ${ability.name}
+                    <span class="ability-cost">${ability.cost} MP</span>
+                </div>
+            `;
+        }).join('');
+        
+        if (availableAbilities.length === 0) {
+            abilityOptions.innerHTML = '<div class="menu-option disabled">No abilities available</div>';
+        }
+        
+        abilityOptions.querySelectorAll('.menu-option:not(.disabled)').forEach(option => {
+            option.addEventListener('click', () => {
+                const abilityName = option.dataset.ability;
+                const ability = ABILITIES[abilityName];
+                
+                this.selectTarget(character, ability.target, (target) => {
+                    this.battle.executePlayerAction({ 
+                        action: 'ability', 
+                        ability: abilityName, 
+                        target 
+                    });
+                    abilityMenu.classList.add('hidden');
+                });
+            });
+        });
+    }
+    
+    showOverrideMenu(character) {
+        document.getElementById('action-menu').classList.add('hidden');
+        const targetMenu = document.getElementById('target-menu');
+        const targetOptions = document.getElementById('target-options');
+        
+        targetMenu.classList.remove('hidden');
+        
+        // Show AI-controlled allies
+        const aiAllies = this.party.filter(m => m.controlType === 'AI' && m.stats.hp > 0);
+        targetOptions.innerHTML = aiAllies.map(ally => 
+            `<div class="menu-option" data-target="${ally.name}">${ally.name}</div>`
+        ).join('');
+        
+        targetOptions.querySelectorAll('.menu-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const targetName = option.dataset.target;
+                const target = this.party.find(m => m.name === targetName);
+                
+                // Now select action for the overridden character
+                this.selectOverrideAction(character, target);
+                targetMenu.classList.add('hidden');
+            });
+        });
+    }
+    
+    selectOverrideAction(overrider, target) {
+        // Show a menu to select what action the AI should take
+        alert(`Override menu for ${target.name} - selecting Attack for now`);
+        
+        // For now, just make them attack a random enemy
+        const randomEnemy = this.battle.enemies.filter(e => e.stats.hp > 0)[0];
+        
+        this.battle.executePlayerAction({
+            action: 'override',
+            target: target,
+            overrideAction: {
+                action: 'attack',
+                target: randomEnemy
+            }
+        });
+    }
+    
+    selectTarget(character, targetType, callback) {
+        const targetMenu = document.getElementById('target-menu');
+        const targetOptions = document.getElementById('target-options');
+        
+        document.getElementById('ability-menu').classList.add('hidden');
+        targetMenu.classList.remove('hidden');
+        
+        let targets;
+        if (targetType === 'enemy') {
+            targets = this.battle ? this.battle.enemies.filter(e => e.stats.hp > 0) : [];
+        } else if (targetType === 'ally') {
+            targets = this.party.filter(m => m.stats.hp > 0);
+        }
+        
+        if (targets.length === 0) {
+            targetMenu.classList.add('hidden');
+            return;
+        }
+        
+        targetOptions.innerHTML = targets.map(target => 
+            `<div class="menu-option" data-target="${target.name}">${target.name}</div>`
+        ).join('');
+        
+        targetOptions.querySelectorAll('.menu-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const targetName = option.dataset.target;
+                const target = targets.find(t => t.name === targetName);
+                targetMenu.classList.add('hidden');
+                callback(target);
+            });
+        });
+    }
+    
+    endBattle(result) {
+        this.state = 'OVERWORLD';
+        document.getElementById('battle-ui').classList.add('hidden');
+        this.battle = null;
+        
+        if (result === 'victory') {
+            this.showMessage('Victory! You gained experience!');
+        } else {
+            this.showMessage('Defeated... Game Over. Press F5 to restart.');
+        }
+    }
+    
+    openMenu() {
+        this.state = 'MENU';
+        const menuElement = document.getElementById('main-menu');
+        menuElement.classList.remove('hidden');
+        
+        // Setup menu options
+        const menuOptions = menuElement.querySelectorAll('.menu-option');
+        menuOptions.forEach(option => {
+            option.onclick = () => this.handleMenuSelection(option.dataset.menu);
+        });
+        
+        // Show default view (party status)
+        this.showMenuParty();
+    }
+    
+    handleMenuSelection(menuType) {
+        switch (menuType) {
+            case 'party':
+                this.showMenuParty();
+                break;
+            case 'equipment':
+                this.showMenuEquipment();
+                break;
+            case 'inventory':
+                this.showMenuInventory();
+                break;
+            case 'close':
+                this.closeMenu();
+                break;
+        }
+    }
+    
+    showMenuParty() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Party Status</h3>';
+        
+        this.party.forEach(member => {
+            const hpPercent = (member.stats.hp / member.stats.maxHp) * 100;
+            const mpPercent = (member.stats.mp / member.stats.maxMp) * 100;
+            const expPercent = (member.exp / member.expToNext) * 100;
+            
+            html += `
+                <div style="background: rgba(0,0,50,0.5); border: 2px solid #4169e1; border-radius: 4px; padding: 12px; margin-bottom: 12px;">
+                    <div style="color: #ffd700; font-weight: bold; font-size: 18px; margin-bottom: 8px;">
+                        ${member.name} - Level ${member.level} [${member.controlType}]
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                        <div>
+                            <div>HP: ${member.stats.hp}/${member.stats.maxHp}</div>
+                            <div class="stat-bar" style="width: 120px; height: 8px; background: #222; border: 1px solid #fff; margin-top: 4px;">
+                                <div style="width: ${hpPercent}%; height: 100%; background: linear-gradient(to right, #0f0, #0a0);"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div>MP: ${member.stats.mp}/${member.stats.maxMp}</div>
+                            <div class="stat-bar" style="width: 120px; height: 8px; background: #222; border: 1px solid #fff; margin-top: 4px;">
+                                <div style="width: ${mpPercent}%; height: 100%; background: linear-gradient(to right, #00f, #00a);"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #ccc;">
+                        STR: ${member.stats.STR} | DEF: ${member.stats.DEF} | INT: ${member.stats.INT} | MND: ${member.stats.MND} | SPD: ${member.stats.SPD}
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px;">
+                        EXP: ${member.exp}/${member.expToNext}
+                        <div class="stat-bar" style="width: 200px; height: 6px; background: #222; border: 1px solid #ffd700; margin-top: 4px;">
+                            <div style="width: ${expPercent}%; height: 100%; background: #ffd700;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #ffaa00;">
+                        Equipment: ${member.equipment.weapon?.name || 'None'} | ${member.equipment.armor?.name || 'None'} | ${member.equipment.accessory?.name || 'None'}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+            <div style="margin-top: 20px; padding: 10px; background: rgba(255,215,0,0.1); border: 2px solid #ffd700; border-radius: 4px;">
+                <div style="color: #ffd700;">Gil: ${this.gil}</div>
+                <div style="color: #ffd700; margin-top: 4px;">Time: ${this.getPlayTimeString()}</div>
+            </div>
+        `;
+        
+        details.innerHTML = html;
+    }
+    
+    showMenuEquipment() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Equipment</h3>';
+        html += '<p style="color: #ccc; margin-bottom: 15px;">Select a character to change equipment:</p>';
+        
+        this.party.forEach((member, index) => {
+            html += `
+                <div class="menu-option" onclick="game.selectCharacterForEquipment(${index})" style="margin-bottom: 8px;">
+                    ${member.name} - Lv${member.level}
+                </div>
+            `;
+        });
+        
+        details.innerHTML = html;
+    }
+    
+    showMenuInventory() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Inventory</h3>';
+        html += `<p style="color: #ccc; margin-bottom: 10px;">Items: ${this.inventory.getTotalItemCount()}/${this.inventory.maxSlots}</p>`;
+        
+        html += '<h4 style="color: #4169e1; margin: 15px 0 10px;">Consumables</h4>';
+        for (const [id, item] of Object.entries(this.inventory.items)) {
+            html += `
+                <div class="inventory-item">
+                    <div class="item-name">${item.name} <span class="item-quantity">x${item.count}</span></div>
+                    <div class="item-description">${item.description}</div>
+                </div>
+            `;
+        }
+        
+        html += '<h4 style="color: #4169e1; margin: 15px 0 10px;">Equipment</h4>';
+        const equipCount = Object.keys(this.inventory.equipment).length;
+        if (equipCount === 0) {
+            html += '<p style="color: #888; font-style: italic;">No equipment in inventory</p>';
+        } else {
+            for (const [id, equip] of Object.entries(this.inventory.equipment)) {
+                html += `
+                    <div class="inventory-item">
+                        <div class="item-name">${equip.name} <span class="item-quantity">x${equip.count}</span></div>
+                        <div class="item-description">${equip.description}</div>
+                    </div>
+                `;
+            }
+        }
+        
+        details.innerHTML = html;
+    }
+    
+    selectCharacterForEquipment(index) {
+        const member = this.party[index];
+        const details = document.getElementById('menu-details');
+        
+        let html = `<h3 style="color: #ffd700; margin-bottom: 15px;">${member.name}'s Equipment</h3>`;
+        html += '<p style="color: #888; font-size: 12px; margin-bottom: 15px;">Note: No stat comparisons shown (as per GDD)</p>';
+        
+        // Show equipment slots
+        const slots = ['weapon', 'armor', 'accessory'];
+        slots.forEach(slot => {
+            const equipped = member.equipment[slot];
+            html += `
+                <div class="equipment-slot">
+                    <div class="equipment-slot-name">${slot.toUpperCase()}</div>
+                    <div class="equipment-item ${equipped ? '' : 'empty'}">
+                        ${equipped ? equipped.name : 'Empty'}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '<div class="menu-option" onclick="game.showMenuEquipment()" style="margin-top: 20px;">← Back</div>';
+        details.innerHTML = html;
+    }
+    
+    getPlayTimeString() {
+        const totalSeconds = Math.floor((Date.now() - this.startTime) / 1000) + this.playTime;
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    closeMenu() {
+        this.state = 'OVERWORLD';
+        document.getElementById('main-menu').classList.add('hidden');
+    }
+    
+    showMessage(text) {
+        const dialogueBox = document.getElementById('dialogue-box');
+        const dialogueText = document.getElementById('dialogue-text');
+        
+        dialogueText.textContent = text;
+        dialogueBox.classList.remove('hidden');
+        
+        setTimeout(() => {
+            dialogueBox.classList.add('hidden');
+        }, 3000);
+    }
+}
+
+// ===== START GAME =====
+let game; // Global game instance
+window.addEventListener('load', () => {
+    game = new Game();
+});

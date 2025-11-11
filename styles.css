@@ -1,0 +1,386 @@
+/* Generic JRPG Styling */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    color: #fff;
+}
+
+#game-container {
+    position: relative;
+    background: #000;
+    border: 4px solid #8b4513;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.9), inset 0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+#gameCanvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+}
+
+#ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+#ui-overlay > * {
+    pointer-events: auto;
+}
+
+/* Battle UI */
+#battle-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#party-status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    max-width: 350px;
+}
+
+.character-status {
+    background: rgba(0, 0, 50, 0.9);
+    border: 3px solid #4169e1;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.character-status.ai-controlled {
+    border-color: #ff4500;
+}
+
+.character-status.player-controlled {
+    border-color: #00ff00;
+}
+
+.character-name {
+    font-weight: bold;
+    color: #ffd700;
+    margin-bottom: 4px;
+}
+
+.character-hp, .character-mp {
+    margin: 2px 0;
+}
+
+.stat-bar {
+    display: inline-block;
+    width: 100px;
+    height: 8px;
+    background: #222;
+    border: 1px solid #fff;
+    position: relative;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.stat-fill {
+    height: 100%;
+    transition: width 0.3s;
+}
+
+.hp-fill {
+    background: linear-gradient(to right, #0f0, #0a0);
+}
+
+.mp-fill {
+    background: linear-gradient(to right, #00f, #00a);
+}
+
+.character-status-effects {
+    font-size: 11px;
+    color: #ffaa00;
+    margin-top: 4px;
+}
+
+#enemy-status {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    max-width: 300px;
+}
+
+.enemy-status {
+    background: rgba(50, 0, 0, 0.9);
+    border: 3px solid #8b0000;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+#battle-log {
+    position: absolute;
+    bottom: 160px;
+    left: 10px;
+    right: 10px;
+    height: 100px;
+    background: rgba(0, 0, 20, 0.95);
+    border: 3px solid #fff;
+    border-radius: 6px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+#battle-messages {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.battle-message {
+    margin-bottom: 4px;
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+#action-menu, #target-menu, #ability-menu {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(0, 0, 50, 0.95);
+    border: 3px solid #ffd700;
+    border-radius: 6px;
+    padding: 12px;
+    min-width: 250px;
+    max-width: 400px;
+}
+
+.menu-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #ffd700;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #ffd700;
+}
+
+.menu-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.menu-option {
+    color: #fff;
+    font-size: 16px;
+    padding: 10px 15px;
+    background: rgba(50, 50, 100, 0.8);
+    border: 2px solid #4169e1;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.menu-option:hover {
+    background: rgba(100, 100, 200, 0.9);
+    border-color: #ffd700;
+    transform: translateX(5px);
+}
+
+.menu-option.selected {
+    background: rgba(150, 150, 255, 0.9);
+    border-color: #ffd700;
+}
+
+.menu-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.menu-option.disabled:hover {
+    transform: none;
+}
+
+.ability-cost {
+    float: right;
+    color: #88aaff;
+    font-size: 14px;
+}
+
+/* Main Menu */
+#main-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 500px;
+    background: rgba(0, 0, 30, 0.98);
+    border: 4px solid #ffd700;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    gap: 20px;
+}
+
+.menu-panel {
+    flex: 0 0 200px;
+}
+
+#menu-details {
+    flex: 1;
+    background: rgba(0, 0, 50, 0.7);
+    border: 2px solid #4169e1;
+    border-radius: 4px;
+    padding: 15px;
+    overflow-y: auto;
+}
+
+/* Dialogue Box */
+#dialogue-box {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    background: rgba(0, 0, 20, 0.95);
+    border: 3px solid #fff;
+    border-radius: 6px;
+    padding: 15px;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+#dialogue-indicator {
+    position: absolute;
+    bottom: 10px;
+    right: 20px;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Title Screen */
+.title-screen {
+    font-size: 48px;
+    color: #ffd700;
+    text-shadow: 3px 3px 0 #8b0000, 6px 6px 10px #000;
+    animation: titleGlow 2s infinite alternate;
+}
+
+@keyframes titleGlow {
+    from { text-shadow: 3px 3px 0 #8b0000, 6px 6px 10px #000; }
+    to { text-shadow: 3px 3px 0 #ff0000, 6px 6px 20px #ffd700; }
+}
+
+/* Equipment Display */
+.equipment-slot {
+    background: rgba(50, 50, 100, 0.5);
+    border: 2px solid #4169e1;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 6px 0;
+}
+
+.equipment-slot-name {
+    color: #ffd700;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.equipment-item {
+    color: #fff;
+}
+
+.equipment-item.empty {
+    color: #888;
+    font-style: italic;
+}
+
+/* Inventory Item */
+.inventory-item {
+    background: rgba(50, 50, 100, 0.5);
+    border: 2px solid #4169e1;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 6px 0;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.inventory-item:hover {
+    background: rgba(100, 100, 200, 0.7);
+    border-color: #ffd700;
+}
+
+.item-name {
+    color: #ffd700;
+    font-weight: bold;
+}
+
+.item-description {
+    color: #ccc;
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.item-quantity {
+    float: right;
+    color: #88aaff;
+}
+
+/* Character Stats Display */
+.stat-row {
+    margin: 4px 0;
+    padding: 4px 0;
+}
+
+.stat-label {
+    display: inline-block;
+    width: 80px;
+    color: #ffd700;
+}
+
+.stat-value {
+    color: #fff;
+}
+
+/* Turn Indicator */
+.turn-indicator {
+    position: absolute;
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 2px 2px 4px #000;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+}

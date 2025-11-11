@@ -11,6 +11,88 @@ const STATUS_EFFECTS = {
     REGEN: { name: 'REGEN', color: '#1abc9c', persistent: false }
 };
 
+const EQUIPMENT_DATA = {
+    // Weapons
+    BROADSWORD: { 
+        name: 'Broadsword', 
+        type: 'weapon', 
+        price: 180, 
+        STR: 12, 
+        compatibleWith: ['Blayde', 'Leo'],
+        description: 'A sturdy steel sword'
+    },
+    WOODEN_STAFF: { 
+        name: 'Wooden Staff', 
+        type: 'weapon', 
+        price: 150, 
+        INT: 8, 
+        MND: 8,
+        compatibleWith: ['Serapha', 'Eliza'],
+        description: 'A simple wooden staff'
+    },
+    // Armor
+    LEATHER_TUNIC: { 
+        name: 'Leather Tunic', 
+        type: 'armor', 
+        price: 100, 
+        DEF: 8,
+        compatibleWith: ['Blayde', 'Serapha', 'Leo', 'Eliza'],
+        description: 'Light leather armor'
+    },
+    // Accessories
+    LEATHER_SHIELD: { 
+        name: 'Leather Shield', 
+        type: 'accessory', 
+        price: 80, 
+        DEF: 5,
+        compatibleWith: ['Blayde', 'Leo'],
+        description: 'A small wooden shield'
+    },
+    POISON_RING: {
+        name: 'Poison Ring',
+        type: 'accessory',
+        price: 120,
+        effect: 'POISON_IMMUNITY',
+        compatibleWith: ['Blayde', 'Serapha', 'Leo', 'Eliza'],
+        description: 'Prevents POISON status'
+    },
+    SPEED_BOOTS: {
+        name: 'Speed Boots',
+        type: 'accessory',
+        price: 150,
+        SPD: 5,
+        compatibleWith: ['Blayde', 'Serapha', 'Leo', 'Eliza'],
+        description: 'Increases speed'
+    }
+};
+
+const SHOP_DATA = {
+    LEAFY_VILLAGE_ITEMS: {
+        name: 'Toadstool Sundries',
+        items: [
+            { id: 'POTION', price: 50 },
+            { id: 'ANTIDOTE', price: 20 },
+            { id: 'PHOENIX_DOWN', price: 500 }
+        ]
+    },
+    LEAFY_VILLAGE_EQUIPMENT: {
+        name: 'The Rusty Helm',
+        items: [
+            { id: 'BROADSWORD', price: 180 },
+            { id: 'WOODEN_STAFF', price: 150 },
+            { id: 'LEATHER_TUNIC', price: 100 },
+            { id: 'LEATHER_SHIELD', price: 80 }
+        ]
+    }
+};
+
+const ITEM_DATA = {
+    POTION: { name: 'Potion', type: 'consumable', maxStack: 9, description: 'Restores 50 HP', effect: 'heal', value: 50 },
+    ETHER: { name: 'Ether', type: 'consumable', maxStack: 9, description: 'Restores 20 MP', effect: 'restoreMP', value: 20 },
+    ANTIDOTE: { name: 'Antidote', type: 'consumable', maxStack: 9, description: 'Cures POISON', effect: 'curePoison' },
+    PHOENIX_DOWN: { name: 'Phoenix Down', type: 'consumable', maxStack: 9, description: 'Revives with 1 HP', effect: 'revive' }
+};
+
 const ABILITIES = {
     // Blayde's Abilities
     FIRE_SLASH: {
@@ -335,18 +417,23 @@ class Inventory {
     constructor() {
         this.maxSlots = 20;
         this.items = {
-            POTION: { name: 'Potion', type: 'consumable', count: 5, maxStack: 9, description: 'Restores 50 HP' },
-            ETHER: { name: 'Ether', type: 'consumable', count: 2, maxStack: 9, description: 'Restores 20 MP' },
-            ANTIDOTE: { name: 'Antidote', type: 'consumable', count: 3, maxStack: 9, description: 'Cures POISON' },
-            PHOENIX_DOWN: { name: 'Phoenix Down', type: 'consumable', count: 1, maxStack: 9, description: 'Revives with 1 HP' }
+            POTION: { ...ITEM_DATA.POTION, count: 5 },
+            ETHER: { ...ITEM_DATA.ETHER, count: 2 },
+            ANTIDOTE: { ...ITEM_DATA.ANTIDOTE, count: 3 },
+            PHOENIX_DOWN: { ...ITEM_DATA.PHOENIX_DOWN, count: 1 }
         };
         
-        this.equipment = [];
+        this.equipment = {}; // Stores owned equipment pieces
         this.keyItems = [];
     }
     
     getItemCount(itemId) {
         return this.items[itemId]?.count || 0;
+    }
+    
+    hasItem(itemId) {
+        return (this.items[itemId] && this.items[itemId].count > 0) || 
+               (this.equipment[itemId] && this.equipment[itemId].count > 0);
     }
     
     useItem(itemId) {
@@ -361,12 +448,52 @@ class Inventory {
     }
     
     addItem(itemId, count = 1) {
-        if (this.items[itemId]) {
+        const itemData = ITEM_DATA[itemId];
+        if (itemData) {
+            if (!this.items[itemId]) {
+                this.items[itemId] = { ...itemData, count: 0 };
+            }
             this.items[itemId].count = Math.min(
                 this.items[itemId].count + count,
-                this.items[itemId].maxStack
+                itemData.maxStack
             );
+            return true;
         }
+        return false;
+    }
+    
+    addEquipment(equipId, count = 1) {
+        const equipData = EQUIPMENT_DATA[equipId];
+        if (equipData) {
+            if (!this.equipment[equipId]) {
+                this.equipment[equipId] = { ...equipData, count: 0 };
+            }
+            this.equipment[equipId].count += count;
+            return true;
+        }
+        return false;
+    }
+    
+    removeEquipment(equipId) {
+        if (this.equipment[equipId] && this.equipment[equipId].count > 0) {
+            this.equipment[equipId].count--;
+            if (this.equipment[equipId].count === 0) {
+                delete this.equipment[equipId];
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    getTotalItemCount() {
+        let count = 0;
+        for (const item of Object.values(this.items)) {
+            count += 1; // Each stack counts as 1 slot
+        }
+        for (const equip of Object.values(this.equipment)) {
+            count += equip.count; // Each equipment piece is 1 slot
+        }
+        return count;
     }
 }
 
@@ -654,6 +781,11 @@ class Game {
         
         this.inventory = new Inventory();
         this.battle = null;
+        
+        // Game tracking
+        this.gil = 500; // Starting money
+        this.startTime = Date.now();
+        this.playTime = 0; // in seconds
         
         // Overworld
         this.player = {
@@ -1212,7 +1344,170 @@ class Game {
     
     openMenu() {
         this.state = 'MENU';
-        document.getElementById('main-menu').classList.remove('hidden');
+        const menuElement = document.getElementById('main-menu');
+        menuElement.classList.remove('hidden');
+        
+        // Setup menu options
+        const menuOptions = menuElement.querySelectorAll('.menu-option');
+        menuOptions.forEach(option => {
+            option.onclick = () => this.handleMenuSelection(option.dataset.menu);
+        });
+        
+        // Show default view (party status)
+        this.showMenuParty();
+    }
+    
+    handleMenuSelection(menuType) {
+        switch (menuType) {
+            case 'party':
+                this.showMenuParty();
+                break;
+            case 'equipment':
+                this.showMenuEquipment();
+                break;
+            case 'inventory':
+                this.showMenuInventory();
+                break;
+            case 'close':
+                this.closeMenu();
+                break;
+        }
+    }
+    
+    showMenuParty() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Party Status</h3>';
+        
+        this.party.forEach(member => {
+            const hpPercent = (member.stats.hp / member.stats.maxHp) * 100;
+            const mpPercent = (member.stats.mp / member.stats.maxMp) * 100;
+            const expPercent = (member.exp / member.expToNext) * 100;
+            
+            html += `
+                <div style="background: rgba(0,0,50,0.5); border: 2px solid #4169e1; border-radius: 4px; padding: 12px; margin-bottom: 12px;">
+                    <div style="color: #ffd700; font-weight: bold; font-size: 18px; margin-bottom: 8px;">
+                        ${member.name} - Level ${member.level} [${member.controlType}]
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                        <div>
+                            <div>HP: ${member.stats.hp}/${member.stats.maxHp}</div>
+                            <div class="stat-bar" style="width: 120px; height: 8px; background: #222; border: 1px solid #fff; margin-top: 4px;">
+                                <div style="width: ${hpPercent}%; height: 100%; background: linear-gradient(to right, #0f0, #0a0);"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div>MP: ${member.stats.mp}/${member.stats.maxMp}</div>
+                            <div class="stat-bar" style="width: 120px; height: 8px; background: #222; border: 1px solid #fff; margin-top: 4px;">
+                                <div style="width: ${mpPercent}%; height: 100%; background: linear-gradient(to right, #00f, #00a);"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #ccc;">
+                        STR: ${member.stats.STR} | DEF: ${member.stats.DEF} | INT: ${member.stats.INT} | MND: ${member.stats.MND} | SPD: ${member.stats.SPD}
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px;">
+                        EXP: ${member.exp}/${member.expToNext}
+                        <div class="stat-bar" style="width: 200px; height: 6px; background: #222; border: 1px solid #ffd700; margin-top: 4px;">
+                            <div style="width: ${expPercent}%; height: 100%; background: #ffd700;"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; font-size: 12px; color: #ffaa00;">
+                        Equipment: ${member.equipment.weapon?.name || 'None'} | ${member.equipment.armor?.name || 'None'} | ${member.equipment.accessory?.name || 'None'}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+            <div style="margin-top: 20px; padding: 10px; background: rgba(255,215,0,0.1); border: 2px solid #ffd700; border-radius: 4px;">
+                <div style="color: #ffd700;">Gil: ${this.gil}</div>
+                <div style="color: #ffd700; margin-top: 4px;">Time: ${this.getPlayTimeString()}</div>
+            </div>
+        `;
+        
+        details.innerHTML = html;
+    }
+    
+    showMenuEquipment() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Equipment</h3>';
+        html += '<p style="color: #ccc; margin-bottom: 15px;">Select a character to change equipment:</p>';
+        
+        this.party.forEach((member, index) => {
+            html += `
+                <div class="menu-option" onclick="game.selectCharacterForEquipment(${index})" style="margin-bottom: 8px;">
+                    ${member.name} - Lv${member.level}
+                </div>
+            `;
+        });
+        
+        details.innerHTML = html;
+    }
+    
+    showMenuInventory() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Inventory</h3>';
+        html += `<p style="color: #ccc; margin-bottom: 10px;">Items: ${this.inventory.getTotalItemCount()}/${this.inventory.maxSlots}</p>`;
+        
+        html += '<h4 style="color: #4169e1; margin: 15px 0 10px;">Consumables</h4>';
+        for (const [id, item] of Object.entries(this.inventory.items)) {
+            html += `
+                <div class="inventory-item">
+                    <div class="item-name">${item.name} <span class="item-quantity">x${item.count}</span></div>
+                    <div class="item-description">${item.description}</div>
+                </div>
+            `;
+        }
+        
+        html += '<h4 style="color: #4169e1; margin: 15px 0 10px;">Equipment</h4>';
+        const equipCount = Object.keys(this.inventory.equipment).length;
+        if (equipCount === 0) {
+            html += '<p style="color: #888; font-style: italic;">No equipment in inventory</p>';
+        } else {
+            for (const [id, equip] of Object.entries(this.inventory.equipment)) {
+                html += `
+                    <div class="inventory-item">
+                        <div class="item-name">${equip.name} <span class="item-quantity">x${equip.count}</span></div>
+                        <div class="item-description">${equip.description}</div>
+                    </div>
+                `;
+            }
+        }
+        
+        details.innerHTML = html;
+    }
+    
+    selectCharacterForEquipment(index) {
+        const member = this.party[index];
+        const details = document.getElementById('menu-details');
+        
+        let html = `<h3 style="color: #ffd700; margin-bottom: 15px;">${member.name}'s Equipment</h3>`;
+        html += '<p style="color: #888; font-size: 12px; margin-bottom: 15px;">Note: No stat comparisons shown (as per GDD)</p>';
+        
+        // Show equipment slots
+        const slots = ['weapon', 'armor', 'accessory'];
+        slots.forEach(slot => {
+            const equipped = member.equipment[slot];
+            html += `
+                <div class="equipment-slot">
+                    <div class="equipment-slot-name">${slot.toUpperCase()}</div>
+                    <div class="equipment-item ${equipped ? '' : 'empty'}">
+                        ${equipped ? equipped.name : 'Empty'}
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '<div class="menu-option" onclick="game.showMenuEquipment()" style="margin-top: 20px;">← Back</div>';
+        details.innerHTML = html;
+    }
+    
+    getPlayTimeString() {
+        const totalSeconds = Math.floor((Date.now() - this.startTime) / 1000) + this.playTime;
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
     
     closeMenu() {
@@ -1234,6 +1529,7 @@ class Game {
 }
 
 // ===== START GAME =====
+let game; // Global game instance
 window.addEventListener('load', () => {
-    new Game();
+    game = new Game();
 });

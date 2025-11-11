@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VC Odyssey - 16-bit JRPG Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="ui-overlay">
+            <div id="dialogue-box" class="hidden">
+                <p id="dialogue-text"></p>
+                <span id="dialogue-indicator">▼</span>
+            </div>
+            <div id="battle-menu" class="hidden">
+                <div class="menu-option" data-action="attack">⚔️ Attack</div>
+                <div class="menu-option" data-action="magic">✨ Magic</div>
+                <div class="menu-option" data-action="item">🎒 Item</div>
+                <div class="menu-option" data-action="defend">🛡️ Defend</div>
+            </div>
+            <div id="stats-panel">
+                <div id="party-stats"></div>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>

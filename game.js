@@ -622,6 +622,7 @@ class BattleSystem {
         this.selectedAction = null;
         this.playerActionQueue = null;
         this.waitingForPlayer = false;
+        this.isExecuting = false; // Add this lock
     }
     
     start() {
@@ -700,6 +701,9 @@ class BattleSystem {
     }
     
     executeAITurn() {
+        if (this.isExecuting) return;
+        this.isExecuting = true;
+
         this.waitingForPlayer = false;
         const allies = this.party;
         const enemies = this.enemies;
@@ -729,25 +733,33 @@ class BattleSystem {
                 action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
             } else {
                 // Enemy AI - simple attack
-                action = {
-                    action: 'attack',
-                    target: allies[Math.floor(Math.random() * allies.filter(a => a.stats.hp > 0).length)]
-                };
+                const livingAllies = allies.filter(a => a.stats.hp > 0);
+                if (livingAllies.length > 0) {
+                    action = {
+                        action: 'attack',
+                        target: livingAllies[Math.floor(Math.random() * livingAllies.length)]
+                    };
+                }
             }
         }
         
         this.executeAction(action);
         
         setTimeout(() => {
+            this.isExecuting = false;
             this.nextTurn();
         }, 1500);
     }
     
     executePlayerAction(action) {
+        if (this.isExecuting) return;
+        this.isExecuting = true;
+
         this.waitingForPlayer = false;
         this.executeAction(action);
         
         setTimeout(() => {
+            this.isExecuting = false;
             this.nextTurn();
         }, 1500);
     }
@@ -1827,6 +1839,8 @@ class Game {
     }
     
     handleBattleMenuSelection(action, character) {
+        if (this.battle.isExecuting) return;
+
         if (action === 'attack') {
             this.selectTarget(character, 'enemy', (target) => {
                 this.battle.executePlayerAction({ action: 'attack', target });
@@ -1841,8 +1855,9 @@ class Game {
             this.showOverrideMenu(character);
         } else if (action === 'item') {
             alert('Item menu not yet implemented!');
-            document.getElementById('action-menu').classList.add('hidden');
+            // Default to defend to avoid soft-locking the game
             this.battle.executePlayerAction({ action: 'defend' });
+            document.getElementById('action-menu').classList.add('hidden');
         }
     }
     
@@ -1915,16 +1930,28 @@ class Game {
         alert(`Override menu for ${target.name} - selecting Attack for now`);
         
         // For now, just make them attack a random enemy
-        const randomEnemy = this.battle.enemies.filter(e => e.stats.hp > 0)[0];
-        
-        this.battle.executePlayerAction({
-            action: 'override',
-            target: target,
-            overrideAction: {
-                action: 'attack',
-                target: randomEnemy
-            }
-        });
+        const livingEnemies = this.battle.enemies.filter(e => e.stats.hp > 0);
+        if (livingEnemies.length > 0) {
+            const randomEnemy = livingEnemies[0];
+
+            this.battle.executePlayerAction({
+                action: 'override',
+                target: target,
+                overrideAction: {
+                    action: 'attack',
+                    target: randomEnemy
+                }
+            });
+        } else {
+            // No enemies to attack, so just defend
+            this.battle.executePlayerAction({
+                action: 'override',
+                target: target,
+                overrideAction: {
+                    action: 'defend'
+                }
+            });
+        }
     }
     
     selectTarget(character, targetType, callback) {

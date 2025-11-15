@@ -1,5 +1,97 @@
 // Generic JRPG - Proof of Concept
 // Game Design Document v1.1 Implementation
+// Refactored to sprite-based rendering per Betty's Specification v1.0
+
+// ===== ASSET MANIFEST =====
+const ASSET_MANIFEST = {
+    // Overworld tileset (4 tiles: 2 grass, 2 path)
+    'tileset_world': 'https://placehold.co/128x64/228B22/000000?text=GRASS-1%0AGRASS-2&font=arial',
+    'tileset_path': 'https://placehold.co/128x64/8B4513/FFFFFF?text=PATH-1%0APATH-2&font=arial',
+
+    // Player Sprite Sheet (32x64 sprites)
+    // Layout: [Idle, Walk1, Walk2, Walk3]
+    // Row 1 (y=0):   Walk Down
+    // Row 2 (y=64):  Walk Left
+    // Row 3 (y=128): Walk Right
+    // Row 4 (y=192): Walk Up
+    'sheet_leo': 'https://placehold.co/128x256/0000FF/FFFFFF?text=LeoSheet&font=arial',
+    'sheet_eliza': 'https://placehold.co/128x256/800080/FFFFFF?text=ElizaSheet&font=arial',
+    'sheet_blayde': 'https://placehold.co/128x256/FF0000/FFFFFF?text=BlaydeSheet&font=arial',
+    'sheet_serapha': 'https://placehold.co/128x256/FFC0CB/000000?text=SeraphaSheet&font=arial',
+
+    // Enemy Sprite
+    'enemy_shadow_beast': 'https://placehold.co/64x64/4B0082/FFFFFF?text=Beast&font=arial',
+
+    // UI Elements
+    'ui_window': 'https://placehold.co/128x128/191970/FFFFFF?text=UI-Window&font=arial',
+    'ui_cursor': 'https://placehold.co/32x32/FFFF00/000000?text=Cursor&font=arial'
+};
+
+// ===== ASSET LOADER =====
+class AssetLoader {
+    constructor(manifest) {
+        this.manifest = manifest;
+        this.assets = {};
+        this.totalAssets = 0;
+        this.loadedAssets = 0;
+        this.loadingComplete = false;
+        this.loadingError = null;
+    }
+
+    async loadAll() {
+        const assetKeys = Object.keys(this.manifest);
+        this.totalAssets = assetKeys.length;
+        this.loadedAssets = 0;
+
+        console.log(`[AssetLoader] Loading ${this.totalAssets} assets...`);
+
+        const loadPromises = assetKeys.map(key => this.loadAsset(key, this.manifest[key]));
+
+        try {
+            await Promise.all(loadPromises);
+            this.loadingComplete = true;
+            console.log(`[AssetLoader] All ${this.totalAssets} assets loaded successfully!`);
+            return true;
+        } catch (error) {
+            this.loadingError = error;
+            console.error('[AssetLoader] Failed to load assets:', error);
+            return false;
+        }
+    }
+
+    loadAsset(key, url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+
+            img.onload = () => {
+                this.assets[key] = img;
+                this.loadedAssets++;
+                console.log(`[AssetLoader] Loaded ${key} (${this.loadedAssets}/${this.totalAssets})`);
+                resolve(img);
+            };
+
+            img.onerror = (error) => {
+                console.error(`[AssetLoader] Failed to load ${key} from ${url}`, error);
+                reject(new Error(`Failed to load asset: ${key}`));
+            };
+
+            img.src = url;
+        });
+    }
+
+    getAsset(key) {
+        if (!this.assets[key]) {
+            console.warn(`[AssetLoader] Asset "${key}" not found!`);
+            return null;
+        }
+        return this.assets[key];
+    }
+
+    getLoadingProgress() {
+        if (this.totalAssets === 0) return 0;
+        return Math.floor((this.loadedAssets / this.totalAssets) * 100);
+    }
+}
 
 // ===== CONSTANTS AND DATA =====
 const STATUS_EFFECTS = {
@@ -913,13 +1005,34 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.width = this.canvas.width;
         this.height = this.canvas.height;
-        
-        this.state = 'TITLE'; // TITLE, OVERWORLD, BATTLE, MENU
+
+        this.state = 'LOADING'; // LOADING, TITLE, OVERWORLD, BATTLE, MENU
         this.keys = {};
-        
-        this.initGame();
+
+        // Initialize Asset Loader
+        this.assetLoader = new AssetLoader(ASSET_MANIFEST);
+
+        // Start asset loading, then initialize game
+        this.loadAssetsAndStart();
         this.setupEventListeners();
         this.gameLoop();
+    }
+
+    async loadAssetsAndStart() {
+        try {
+            const success = await this.assetLoader.loadAll();
+            if (success) {
+                console.log('[Game] Assets loaded successfully, initializing game...');
+                this.initGame();
+                this.state = 'TITLE';
+            } else {
+                console.error('[Game] Failed to load assets');
+                this.state = 'ERROR';
+            }
+        } catch (error) {
+            console.error('[Game] Error during asset loading:', error);
+            this.state = 'ERROR';
+        }
     }
     
     initGame() {
@@ -993,7 +1106,11 @@ class Game {
             x: 400,
             y: 300,
             direction: 'down',
-            speed: 2.5
+            speed: 2.5,
+            // Animation properties (per Betty's spec)
+            frame: 0,
+            animationTimer: 0,
+            animationThreshold: 10 // Frames before advancing animation
         };
         
         this.encounterTimer = 0;
@@ -1099,7 +1216,7 @@ class Game {
     updateOverworld() {
         const player = this.player;
         let moved = false;
-        
+
         if (this.keys['ArrowUp']) {
             player.y -= player.speed;
             player.direction = 'up';
@@ -1120,25 +1237,40 @@ class Game {
             player.direction = 'right';
             moved = true;
         }
-        
+
         // Keep player in bounds
         player.x = Math.max(32, Math.min(this.width - 32, player.x));
         player.y = Math.max(32, Math.min(this.height - 32, player.y));
-        
-        // Random encounters
+
+        // Animation logic (per Betty's spec)
         if (moved) {
+            player.animationTimer++;
+            if (player.animationTimer >= player.animationThreshold) {
+                player.frame = (player.frame + 1) % 4; // Cycle through 4 frames
+                player.animationTimer = 0;
+            }
+
+            // Random encounters
             this.encounterTimer++;
             if (this.encounterTimer > 120 && Math.random() < 0.015) {
                 this.startBattle();
                 this.encounterTimer = 0;
             }
+        } else {
+            // Reset to idle frame when not moving
+            player.frame = 0;
+            player.animationTimer = 0;
         }
     }
     
     render() {
         this.ctx.clearRect(0, 0, this.width, this.height);
-        
-        if (this.state === 'TITLE') {
+
+        if (this.state === 'LOADING') {
+            this.renderLoading();
+        } else if (this.state === 'ERROR') {
+            this.renderError();
+        } else if (this.state === 'TITLE') {
             this.renderTitle();
         } else if (this.state === 'OVERWORLD') {
             this.renderOverworld();
@@ -1146,7 +1278,61 @@ class Game {
             this.renderBattle();
         }
     }
-    
+
+    renderLoading() {
+        // Background
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Loading text
+        this.ctx.font = '32px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText('Loading Assets...', this.width / 2, this.height / 2 - 20);
+
+        // Progress bar
+        const progress = this.assetLoader.getLoadingProgress();
+        const barWidth = 400;
+        const barHeight = 30;
+        const barX = this.width / 2 - barWidth / 2;
+        const barY = this.height / 2 + 20;
+
+        // Bar background
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // Bar fill
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.fillRect(barX, barY, (barWidth * progress) / 100, barHeight);
+
+        // Percentage text
+        this.ctx.font = '20px Courier New';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(`${progress}%`, this.width / 2, barY + barHeight / 2 + 7);
+    }
+
+    renderError() {
+        // Background
+        this.ctx.fillStyle = '#300';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Error text
+        this.ctx.font = '32px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#f00';
+        this.ctx.fillText('ERROR LOADING ASSETS', this.width / 2, this.height / 2 - 40);
+
+        this.ctx.font = '18px Courier New';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText('Please refresh the page', this.width / 2, this.height / 2 + 10);
+
+        if (this.assetLoader.loadingError) {
+            this.ctx.font = '14px Courier New';
+            this.ctx.fillStyle = '#aaa';
+            this.ctx.fillText(this.assetLoader.loadingError.message, this.width / 2, this.height / 2 + 40);
+        }
+    }
+
     renderTitle() {
         // Background gradient
         const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
@@ -1200,202 +1386,138 @@ class Game {
     }
     
     renderOverworld() {
-        // Draw enhanced grass field with texture variation (FF6 style)
-        for (let y = 0; y < this.height; y += 16) {
-            for (let x = 0; x < this.width; x += 16) {
-                // Create varied grass pattern
-                const pattern = (x / 16 + y / 16) % 4;
-                let baseColor, accentColor;
-                
-                if (pattern === 0) {
-                    baseColor = '#3a6b1f';
-                    accentColor = '#2d5016';
-                } else if (pattern === 1) {
-                    baseColor = '#2d5016';
-                    accentColor = '#3a6b1f';
-                } else if (pattern === 2) {
-                    baseColor = '#2a4c14';
-                    accentColor = '#3a6b1f';
-                } else {
-                    baseColor = '#335919';
-                    accentColor = '#2d5016';
-                }
-                
-                // Base grass tile
-                this.ctx.fillStyle = baseColor;
-                this.ctx.fillRect(x, y, 16, 16);
-                
-                // Add grass detail pixels (FF6 style)
-                this.ctx.fillStyle = accentColor;
-                const seed = x * 7 + y * 13;
-                if (seed % 3 === 0) {
-                    this.ctx.fillRect(x + 2, y + 3, 2, 3);
-                    this.ctx.fillRect(x + 8, y + 6, 2, 3);
-                    this.ctx.fillRect(x + 12, y + 2, 2, 3);
-                }
-                if (seed % 5 === 0) {
-                    this.ctx.fillRect(x + 5, y + 10, 2, 2);
-                    this.ctx.fillRect(x + 11, y + 11, 2, 2);
-                }
-                
-                // Dark grass blades
-                this.ctx.fillStyle = '#1a3c0f';
-                if (seed % 7 === 0) {
-                    this.ctx.fillRect(x + 3, y + 5, 1, 2);
-                    this.ctx.fillRect(x + 9, y + 8, 1, 2);
-                }
+        // SPRITE-BASED RENDERING (per Betty's spec)
+        // Draw grass tiles using sprite sheet
+        const grassTileset = this.assetLoader.getAsset('tileset_world');
+        const pathTileset = this.assetLoader.getAsset('tileset_path');
+
+        if (!grassTileset || !pathTileset) {
+            // Fallback if assets not loaded
+            this.ctx.fillStyle = '#2d5016';
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = '20px Courier New';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Assets loading...', this.width / 2, this.height / 2);
+            return;
+        }
+
+        const tileSize = 32; // Each tile is 32x32 in the sprite sheet (64x64 has 2 tiles)
+
+        // Draw grass field (tiled pattern)
+        for (let y = 0; y < this.height; y += tileSize) {
+            for (let x = 0; x < this.width; x += tileSize) {
+                // Alternate between grass tile 1 and grass tile 2
+                const tileIndex = ((x / tileSize) + (y / tileSize)) % 2;
+                const sx = tileIndex * tileSize; // 0 or 32
+                const sy = 0; // Top row (grassTileset is 64x32)
+
+                this.ctx.drawImage(
+                    grassTileset,
+                    sx, sy, tileSize, tileSize, // Source rectangle
+                    x, y, tileSize, tileSize    // Destination rectangle
+                );
             }
         }
-        
-        // Draw detailed dirt paths with texture
+
+        // Draw paths using path tileset
         const pathCenterX = this.width / 2;
         const pathCenterY = this.height / 2;
-        
+        const pathWidth = 80;
+
         // Vertical path
-        for (let y = 0; y < this.height; y += 8) {
-            for (let px = pathCenterX - 40; px < pathCenterX + 40; px += 8) {
-                const lightness = (px + y) % 3;
-                if (lightness === 0) {
-                    this.ctx.fillStyle = '#b8956a';
-                } else if (lightness === 1) {
-                    this.ctx.fillStyle = '#a0826d';
-                } else {
-                    this.ctx.fillStyle = '#8b7355';
-                }
-                this.ctx.fillRect(px, y, 8, 8);
-                
-                // Add dirt texture
-                if ((px + y) % 11 === 0) {
-                    this.ctx.fillStyle = '#735d47';
-                    this.ctx.fillRect(px + 2, y + 2, 2, 2);
-                }
+        for (let y = 0; y < this.height; y += tileSize) {
+            for (let px = pathCenterX - pathWidth; px < pathCenterX + pathWidth; px += tileSize) {
+                const tileIndex = ((px / tileSize) + (y / tileSize)) % 2;
+                const sx = tileIndex * tileSize;
+                const sy = 0;
+
+                this.ctx.drawImage(
+                    pathTileset,
+                    sx, sy, tileSize, tileSize,
+                    px, y, tileSize, tileSize
+                );
             }
         }
-        
+
         // Horizontal path
-        for (let x = 0; x < this.width; x += 8) {
-            for (let py = pathCenterY - 40; py < pathCenterY + 40; py += 8) {
-                const lightness = (x + py) % 3;
-                if (lightness === 0) {
-                    this.ctx.fillStyle = '#b8956a';
-                } else if (lightness === 1) {
-                    this.ctx.fillStyle = '#a0826d';
-                } else {
-                    this.ctx.fillStyle = '#8b7355';
-                }
-                this.ctx.fillRect(x, py, 8, 8);
-                
-                // Add dirt texture
-                if ((x + py) % 11 === 0) {
-                    this.ctx.fillStyle = '#735d47';
-                    this.ctx.fillRect(x + 2, py + 2, 2, 2);
-                }
+        for (let x = 0; x < this.width; x += tileSize) {
+            for (let py = pathCenterY - pathWidth; py < pathCenterY + pathWidth; py += tileSize) {
+                const tileIndex = ((x / tileSize) + (py / tileSize)) % 2;
+                const sx = tileIndex * tileSize;
+                const sy = 0;
+
+                this.ctx.drawImage(
+                    pathTileset,
+                    sx, sy, tileSize, tileSize,
+                    x, py, tileSize, tileSize
+                );
             }
         }
-        
+
         // Draw player
         this.drawPlayer();
-        
+
         // Draw HUD
         this.drawOverworldHUD();
     }
     
     drawPlayer() {
+        // SPRITE-BASED PLAYER RENDERING (per Betty's spec)
         const p = this.player;
-        
-        // Shadow (more detailed)
+        const leoSheet = this.assetLoader.getAsset('sheet_leo');
+
+        if (!leoSheet) {
+            // Fallback: Simple colored square if sprite not loaded
+            this.ctx.fillStyle = '#0000FF';
+            this.ctx.fillRect(p.x - 16, p.y - 32, 32, 64);
+            return;
+        }
+
+        // Draw shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.beginPath();
         this.ctx.ellipse(p.x, p.y + 20, 12, 6, 0, 0, Math.PI * 2);
         this.ctx.fill();
-        
-        // Draw Leo in Chrono Trigger style (more detailed sprite)
-        // Legs
-        this.ctx.fillStyle = '#2c3e50';
-        this.ctx.fillRect(p.x - 8, p.y + 8, 6, 10);
-        this.ctx.fillRect(p.x + 2, p.y + 8, 6, 10);
-        
-        // Boots
-        this.ctx.fillStyle = '#1a1a1a';
-        this.ctx.fillRect(p.x - 8, p.y + 14, 6, 4);
-        this.ctx.fillRect(p.x + 2, p.y + 14, 6, 4);
-        
-        // Body - blue tunic with detail
-        this.ctx.fillStyle = '#3498db';
-        this.ctx.fillRect(p.x - 10, p.y - 6, 20, 14);
-        
-        // Tunic shadows/highlights
-        this.ctx.fillStyle = '#2980b9';
-        this.ctx.fillRect(p.x + 6, p.y - 6, 4, 14);
-        this.ctx.fillStyle = '#5dade2';
-        this.ctx.fillRect(p.x - 10, p.y - 6, 4, 4);
-        
-        // Belt
-        this.ctx.fillStyle = '#8b4513';
-        this.ctx.fillRect(p.x - 10, p.y + 4, 20, 3);
-        
-        // Belt buckle
-        this.ctx.fillStyle = '#ffd700';
-        this.ctx.fillRect(p.x - 2, p.y + 4, 4, 3);
-        
-        // Arms
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 14, p.y - 2, 4, 10);
-        this.ctx.fillRect(p.x + 10, p.y - 2, 4, 10);
-        
-        // Arm highlights
-        this.ctx.fillStyle = '#ffebd4';
-        this.ctx.fillRect(p.x - 14, p.y - 2, 2, 4);
-        this.ctx.fillRect(p.x + 10, p.y - 2, 2, 4);
-        
-        // Neck
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 4, p.y - 8, 8, 4);
-        
-        // Head - more detailed
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 8, p.y - 20, 16, 14);
-        
-        // Face highlights
-        this.ctx.fillStyle = '#ffebd4';
-        this.ctx.fillRect(p.x - 7, p.y - 19, 6, 6);
-        
-        // Face shadows
-        this.ctx.fillStyle = '#e8c4a3';
-        this.ctx.fillRect(p.x + 4, p.y - 16, 4, 10);
-        
-        // Hair - spiky anime style
-        this.ctx.fillStyle = '#654321';
-        // Back hair
-        this.ctx.fillRect(p.x - 8, p.y - 24, 16, 6);
-        // Hair spikes
-        this.ctx.fillRect(p.x - 10, p.y - 26, 4, 4);
-        this.ctx.fillRect(p.x - 4, p.y - 28, 4, 4);
-        this.ctx.fillRect(p.x + 2, p.y - 26, 4, 4);
-        this.ctx.fillRect(p.x + 8, p.y - 24, 4, 4);
-        
-        // Hair highlights
-        this.ctx.fillStyle = '#8b6f47';
-        this.ctx.fillRect(p.x - 6, p.y - 24, 4, 2);
-        this.ctx.fillRect(p.x - 2, p.y - 26, 2, 2);
-        
-        // Eyes
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(p.x - 6, p.y - 14, 3, 3);
-        this.ctx.fillRect(p.x + 3, p.y - 14, 3, 3);
-        
-        // Eye whites
-        this.ctx.fillStyle = '#fff';
-        this.ctx.fillRect(p.x - 5, p.y - 13, 1, 1);
-        this.ctx.fillRect(p.x + 4, p.y - 13, 1, 1);
-        
-        // Nose
-        this.ctx.fillStyle = '#e8c4a3';
-        this.ctx.fillRect(p.x, p.y - 11, 2, 2);
-        
-        // Mouth
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(p.x - 2, p.y - 8, 4, 1);
+
+        // Determine sprite coordinates based on direction and animation frame
+        const spriteWidth = 32;  // Each frame is 32 pixels wide
+        const spriteHeight = 64; // Each frame is 64 pixels tall
+
+        // Calculate source X (which animation frame: 0-3)
+        const sx = p.frame * spriteWidth; // frame 0-3 = sx 0, 32, 64, 96
+
+        // Calculate source Y (which direction row)
+        let sy = 0;
+        switch (p.direction) {
+            case 'down':
+                sy = 0;   // Row 1
+                break;
+            case 'left':
+                sy = 64;  // Row 2
+                break;
+            case 'right':
+                sy = 128; // Row 3
+                break;
+            case 'up':
+                sy = 192; // Row 4
+                break;
+        }
+
+        // Draw the sprite (9-argument drawImage for clipping)
+        this.ctx.drawImage(
+            leoSheet,                              // Image source
+            sx, sy, spriteWidth, spriteHeight,     // Source rectangle (clip from sprite sheet)
+            p.x - 16, p.y - 32,                    // Destination position (centered on player position)
+            spriteWidth, spriteHeight              // Destination size (1x scale)
+        );
+
+        // Debug info (optional - can remove later)
+        if (false) { // Set to true to see debug info
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = '10px Courier New';
+            this.ctx.fillText(`F:${p.frame} D:${p.direction}`, p.x - 20, p.y - 40);
+        }
     }
     
     drawOverworldHUD() {
@@ -1456,271 +1578,89 @@ class Game {
     }
     
     drawBattleCharacter(x, y, character, isHero) {
-        // Draw FF6/Chrono Trigger quality battle sprites
+        // SPRITE-BASED BATTLE RENDERING (per Betty's spec)
+        let sprite = null;
+        let spriteWidth = 32;
+        let spriteHeight = 64;
+
         if (isHero) {
-            // Determine which hero to draw
-            if (character.name === 'Leo') {
-                // Leo - detailed battle sprite
-                // Legs & boots
-                this.ctx.fillStyle = '#2c3e50';
-                this.ctx.fillRect(x - 12, y + 10, 10, 14);
-                this.ctx.fillRect(x + 2, y + 10, 10, 14);
-                this.ctx.fillStyle = '#1a1a1a';
-                this.ctx.fillRect(x - 12, y + 18, 10, 6);
-                this.ctx.fillRect(x + 2, y + 18, 10, 6);
-                
-                // Body - blue tunic
-                this.ctx.fillStyle = '#3498db';
-                this.ctx.fillRect(x - 16, y - 8, 32, 18);
-                this.ctx.fillStyle = '#2980b9';
-                this.ctx.fillRect(x + 8, y - 8, 8, 18);
-                this.ctx.fillStyle = '#5dade2';
-                this.ctx.fillRect(x - 16, y - 8, 8, 6);
-                
-                // Belt
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x - 16, y + 6, 32, 4);
-                this.ctx.fillStyle = '#ffd700';
-                this.ctx.fillRect(x - 3, y + 6, 6, 4);
-                
-                // Arms
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 20, y - 2, 6, 14);
-                this.ctx.fillRect(x + 14, y - 2, 6, 14);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 20, y - 2, 3, 6);
-                this.ctx.fillRect(x + 14, y - 2, 3, 6);
-                
-                // Shield (left arm)
-                this.ctx.fillStyle = '#c0c0c0';
-                this.ctx.fillRect(x - 24, y + 2, 8, 12);
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x - 22, y + 4, 4, 8);
-                
-                // Sword (right arm)
-                this.ctx.fillStyle = '#c0c0c0';
-                this.ctx.fillRect(x + 18, y - 6, 4, 16);
-                this.ctx.fillStyle = '#ffd700';
-                this.ctx.fillRect(x + 17, y + 8, 6, 4);
-                
-                // Neck
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 6, y - 12, 12, 6);
-                
-                // Head
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 11, y - 31, 10, 10);
-                this.ctx.fillStyle = '#e8c4a3';
-                this.ctx.fillRect(x + 6, y - 28, 6, 16);
-                
-                // Hair - spiky
-                this.ctx.fillStyle = '#654321';
-                this.ctx.fillRect(x - 12, y - 38, 24, 8);
-                this.ctx.fillRect(x - 14, y - 40, 6, 6);
-                this.ctx.fillRect(x - 6, y - 42, 6, 6);
-                this.ctx.fillRect(x + 2, y - 40, 6, 6);
-                this.ctx.fillRect(x + 10, y - 38, 6, 6);
-                this.ctx.fillStyle = '#8b6f47';
-                this.ctx.fillRect(x - 10, y - 38, 6, 3);
-                
-                // Eyes
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 8, y - 24, 4, 4);
-                this.ctx.fillRect(x + 4, y - 24, 4, 4);
-                this.ctx.fillStyle = '#fff';
-                this.ctx.fillRect(x - 7, y - 23, 2, 2);
-                this.ctx.fillRect(x + 5, y - 23, 2, 2);
-                
-                // Mouth
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 4, y - 16, 8, 2);
-            } else if (character.name === 'Eliza') {
-                // Eliza - mage style
-                // Robe bottom
-                this.ctx.fillStyle = '#8e44ad';
-                this.ctx.fillRect(x - 14, y + 8, 28, 16);
-                this.ctx.fillStyle = '#9b59b6';
-                this.ctx.fillRect(x - 14, y + 8, 10, 16);
-                
-                // Robe middle
-                this.ctx.fillStyle = '#8e44ad';
-                this.ctx.fillRect(x - 16, y - 8, 32, 16);
-                this.ctx.fillStyle = '#9b59b6';
-                this.ctx.fillRect(x - 16, y - 8, 12, 12);
-                
-                // Belt/sash
-                this.ctx.fillStyle = '#e8b923';
-                this.ctx.fillRect(x - 16, y + 4, 32, 4);
-                
-                // Arms
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 20, y - 2, 6, 12);
-                this.ctx.fillRect(x + 14, y - 2, 6, 12);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 20, y - 2, 3, 5);
-                
-                // Staff (right hand)
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x + 18, y - 12, 3, 28);
-                // Staff orb
-                this.ctx.fillStyle = '#00f';
-                this.ctx.fillRect(x + 16, y - 16, 7, 7);
-                this.ctx.fillStyle = '#88f';
-                this.ctx.fillRect(x + 17, y - 15, 3, 3);
-                
-                // Book (left hand)
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x - 24, y + 2, 8, 10);
-                this.ctx.fillStyle = '#d4af37';
-                this.ctx.fillRect(x - 23, y + 3, 2, 8);
-                
-                // Neck
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 6, y - 12, 12, 6);
-                
-                // Head
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 11, y - 31, 10, 10);
-                
-                // Hair - long flowing
-                this.ctx.fillStyle = '#4a235a';
-                this.ctx.fillRect(x - 14, y - 36, 28, 8);
-                this.ctx.fillRect(x - 16, y - 28, 4, 24);
-                this.ctx.fillRect(x + 12, y - 28, 4, 24);
-                this.ctx.fillStyle = '#6c3483';
-                this.ctx.fillRect(x - 12, y - 36, 8, 4);
-                
-                // Eyes
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 8, y - 24, 4, 4);
-                this.ctx.fillRect(x + 4, y - 24, 4, 4);
-                this.ctx.fillStyle = '#9b59b6';
-                this.ctx.fillRect(x - 7, y - 23, 2, 2);
-                this.ctx.fillRect(x + 5, y - 23, 2, 2);
-                
-                // Smile
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 4, y - 16, 2, 2);
-                this.ctx.fillRect(x - 2, y - 15, 4, 2);
-                this.ctx.fillRect(x + 2, y - 16, 2, 2);
-            } else if (character.name === 'Blayde') {
-                // Blayde - warrior with sword
-                // Similar to Leo but with red/orange colors
-                this.ctx.fillStyle = '#c0392b';
-                this.ctx.fillRect(x - 16, y - 8, 32, 18);
-                this.ctx.fillStyle = '#e74c3c';
-                this.ctx.fillRect(x - 16, y - 8, 10, 6);
-                
-                // Big sword
-                this.ctx.fillStyle = '#c0c0c0';
-                this.ctx.fillRect(x + 16, y - 16, 6, 28);
-                this.ctx.fillStyle = '#8b0000';
-                this.ctx.fillRect(x + 15, y + 10, 8, 6);
-                
-                // Similar body structure to Leo
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ff4500';
-                this.ctx.fillRect(x - 14, y - 40, 28, 8);
-            } else if (character.name === 'Serapha') {
-                // Serapha - healer with white robes
-                this.ctx.fillStyle = '#ecf0f1';
-                this.ctx.fillRect(x - 14, y - 8, 28, 24);
-                this.ctx.fillStyle = '#fff';
-                this.ctx.fillRect(x - 14, y - 8, 10, 16);
-                
-                // Pink accents
-                this.ctx.fillStyle = '#ff69b4';
-                this.ctx.fillRect(x - 14, y + 4, 28, 4);
-                
-                // Head with pink hair
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ff1493';
-                this.ctx.fillRect(x - 14, y - 38, 28, 8);
+            // Get character sprite sheet
+            const sheetMap = {
+                'Leo': 'sheet_leo',
+                'Eliza': 'sheet_eliza',
+                'Blayde': 'sheet_blayde',
+                'Serapha': 'sheet_serapha'
+            };
+
+            const sheetKey = sheetMap[character.name];
+            if (sheetKey) {
+                sprite = this.assetLoader.getAsset(sheetKey);
+            }
+
+            if (!sprite) {
+                // Fallback: colored square based on character
+                const colorMap = {
+                    'Leo': '#0000FF',
+                    'Eliza': '#800080',
+                    'Blayde': '#FF0000',
+                    'Serapha': '#FFC0CB'
+                };
+                this.ctx.fillStyle = colorMap[character.name] || '#888';
+                this.ctx.fillRect(x - 16, y - 32, 32, 64);
+            } else {
+                // Draw character sprite (use first frame, down direction)
+                // For battle, we use the idle frame (frame 0, down direction)
+                const sx = 0;  // First frame
+                const sy = 0;  // Down direction
+
+                this.ctx.drawImage(
+                    sprite,
+                    sx, sy, spriteWidth, spriteHeight,
+                    x - spriteWidth / 2, y - spriteHeight + 10,
+                    spriteWidth, spriteHeight
+                );
             }
         } else {
-            // Enhanced enemy sprite - Shadow Beast
-            // Body - dark purple with detail
-            this.ctx.fillStyle = '#4a0e4e';
-            this.ctx.fillRect(x - 24, y - 16, 48, 40);
-            this.ctx.fillStyle = '#5b0f6b';
-            this.ctx.fillRect(x - 20, y - 12, 40, 32);
-            this.ctx.fillStyle = '#350a3a';
-            this.ctx.fillRect(x + 8, y - 12, 16, 32);
-            
-            // Horns - detailed
-            this.ctx.fillStyle = '#ff4500';
-            this.ctx.fillRect(x - 28, y - 28, 8, 4);
-            this.ctx.fillRect(x - 32, y - 36, 6, 8);
-            this.ctx.fillRect(x + 20, y - 28, 8, 4);
-            this.ctx.fillRect(x + 26, y - 36, 6, 8);
-            // Horn highlights
-            this.ctx.fillStyle = '#ff6347';
-            this.ctx.fillRect(x - 30, y - 34, 2, 4);
-            this.ctx.fillRect(x + 28, y - 34, 2, 4);
-            
-            // Glowing eyes - more dramatic
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.fillRect(x - 18, y - 8, 8, 8);
-            this.ctx.fillRect(x + 10, y - 8, 8, 8);
-            // Eye glow
-            this.ctx.fillStyle = '#ff6666';
-            this.ctx.fillRect(x - 16, y - 6, 4, 4);
-            this.ctx.fillRect(x + 12, y - 6, 4, 4);
-            
-            // Teeth - sharp and menacing
-            this.ctx.fillStyle = '#fff';
-            for (let i = 0; i < 7; i++) {
-                this.ctx.fillRect(x - 22 + i * 6, y + 10, 4, 10);
-                // Add detail to teeth
-                this.ctx.fillStyle = '#f0f0f0';
-                this.ctx.fillRect(x - 21 + i * 6, y + 11, 2, 8);
-                this.ctx.fillStyle = '#fff';
-            }
-            
-            // Claws
-            this.ctx.fillStyle = '#fff';
-            this.ctx.fillRect(x - 28, y + 8, 4, 12);
-            this.ctx.fillRect(x + 24, y + 8, 4, 12);
-            this.ctx.fillStyle = '#f0f0f0';
-            this.ctx.fillRect(x - 27, y + 9, 2, 10);
-            this.ctx.fillRect(x + 25, y + 9, 2, 10);
-            
-            // Body texture/scales
-            this.ctx.fillStyle = '#2a0a2e';
-            for (let i = 0; i < 4; i++) {
-                for (let j = 0; j < 3; j++) {
-                    this.ctx.fillRect(x - 16 + i * 10, y - 8 + j * 10, 6, 6);
-                }
+            // Enemy sprite
+            sprite = this.assetLoader.getAsset('enemy_shadow_beast');
+            spriteWidth = 64;
+            spriteHeight = 64;
+
+            if (!sprite) {
+                // Fallback: purple square
+                this.ctx.fillStyle = '#4B0082';
+                this.ctx.fillRect(x - 32, y - 32, 64, 64);
+            } else {
+                this.ctx.drawImage(
+                    sprite,
+                    0, 0, spriteWidth, spriteHeight,
+                    x - spriteWidth / 2, y - spriteHeight / 2,
+                    spriteWidth, spriteHeight
+                );
             }
         }
-        
-        // HP bar with more detail
+
+        // HP bar (kept from original - this is UI, not character rendering)
         const barWidth = 70;
         const hpPercent = character.stats.hp / character.stats.maxHp;
-        
+
         // Bar border
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(x - barWidth / 2 - 2, y - 50, barWidth + 4, 10);
-        
+
         // Bar background
         this.ctx.fillStyle = '#333';
         this.ctx.fillRect(x - barWidth / 2, y - 48, barWidth, 6);
-        
+
         // HP fill with gradient effect
         const hpColor = hpPercent > 0.5 ? '#0f0' : hpPercent > 0.25 ? '#ff0' : '#f00';
         const hpDark = hpPercent > 0.5 ? '#0a0' : hpPercent > 0.25 ? '#cc0' : '#a00';
-        
+
         for (let i = 0; i < barWidth * hpPercent; i += 2) {
             this.ctx.fillStyle = i % 4 === 0 ? hpColor : hpDark;
             this.ctx.fillRect(x - barWidth / 2 + i, y - 48, 2, 6);
         }
-        
+
         // Name with shadow
         this.ctx.font = 'bold 14px Courier New';
         this.ctx.fillStyle = '#000';

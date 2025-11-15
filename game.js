@@ -93,6 +93,120 @@ class AssetLoader {
     }
 }
 
+// ===== SAVE SYSTEM =====
+class SaveSystem {
+    constructor() {
+        this.saveKey = 'genericJRPG_save';
+        this.version = '1.0';
+    }
+
+    save(game) {
+        try {
+            const saveData = {
+                version: this.version,
+                timestamp: Date.now(),
+                party: game.party.map(c => this.serializeCharacter(c)),
+                inventory: {
+                    items: game.inventory.items,
+                    equipment: game.inventory.equipment,
+                    keyItems: game.inventory.keyItems
+                },
+                gil: game.gil,
+                playTime: Math.floor((Date.now() - game.startTime) / 1000) + game.playTime,
+                storyPhase: game.currentStoryPhase,
+                hasSeenAwakening: game.hasSeenAwakening,
+                hasSeenIncident: game.hasSeenIncident,
+                playerPosition: {
+                    x: game.player.x,
+                    y: game.player.y,
+                    direction: game.player.direction
+                }
+            };
+
+            localStorage.setItem(this.saveKey, JSON.stringify(saveData));
+            console.log('[SaveSystem] Game saved successfully');
+            return true;
+        } catch (error) {
+            console.error('[SaveSystem] Failed to save:', error);
+            return false;
+        }
+    }
+
+    load() {
+        try {
+            const data = localStorage.getItem(this.saveKey);
+            if (!data) {
+                console.log('[SaveSystem] No save data found');
+                return null;
+            }
+
+            const saveData = JSON.parse(data);
+
+            // Version check
+            if (saveData.version !== this.version) {
+                console.warn('[SaveSystem] Save version mismatch');
+                // Could implement migration here
+            }
+
+            console.log('[SaveSystem] Save data loaded successfully');
+            return saveData;
+        } catch (error) {
+            console.error('[SaveSystem] Failed to load:', error);
+            return null;
+        }
+    }
+
+    serializeCharacter(character) {
+        return {
+            name: character.name,
+            level: character.level,
+            controlType: character.controlType,
+            archetype: character.archetype,
+            exp: character.exp,
+            stats: { ...character.stats },
+            abilities: [...character.abilities],
+            equipment: {
+                weapon: character.equipment.weapon,
+                armor: character.equipment.armor,
+                accessory: character.equipment.accessory
+            },
+            statusEffects: { ...character.statusEffects }
+        };
+    }
+
+    deleteSave() {
+        try {
+            localStorage.removeItem(this.saveKey);
+            console.log('[SaveSystem] Save data deleted');
+            return true;
+        } catch (error) {
+            console.error('[SaveSystem] Failed to delete save:', error);
+            return false;
+        }
+    }
+
+    hasSaveData() {
+        return localStorage.getItem(this.saveKey) !== null;
+    }
+
+    getSaveInfo() {
+        try {
+            const data = localStorage.getItem(this.saveKey);
+            if (!data) return null;
+
+            const saveData = JSON.parse(data);
+            return {
+                timestamp: saveData.timestamp,
+                playTime: saveData.playTime,
+                storyPhase: saveData.storyPhase,
+                partySize: saveData.party.length
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+}
+
 // ===== CONSTANTS AND DATA =====
 const STATUS_EFFECTS = {
     POISON: { name: 'POISON', color: '#9b59b6', persistent: true },
@@ -1087,7 +1201,10 @@ class Game {
         
         this.inventory = new Inventory();
         this.battle = null;
-        
+
+        // Save System
+        this.saveSystem = new SaveSystem();
+
         // Game tracking
         this.gil = 500; // Starting money
         this.startTime = Date.now();
@@ -1117,7 +1234,90 @@ class Game {
         this.titleBlink = 0;
         this.menuState = null;
     }
-    
+
+    loadGame() {
+        try {
+            const saveData = this.saveSystem.load();
+            if (!saveData) {
+                console.log('[Game] No save data to load');
+                return false;
+            }
+
+            console.log('[Game] Loading save data...');
+
+            // Restore party
+            this.party = saveData.party.map(charData => {
+                const char = new Character(charData);
+                char.level = charData.level;
+                char.exp = charData.exp;
+                char.stats = { ...charData.stats };
+                char.statusEffects = { ...charData.statusEffects };
+                char.controlType = charData.controlType;
+                char.archetype = charData.archetype;
+                char.abilities = [...charData.abilities];
+
+                // Restore equipment
+                char.equipment.weapon = charData.equipment.weapon ? EQUIPMENT_DATA[charData.equipment.weapon] : null;
+                char.equipment.armor = charData.equipment.armor ? EQUIPMENT_DATA[charData.equipment.armor] : null;
+                char.equipment.accessory = charData.equipment.accessory ? EQUIPMENT_DATA[charData.equipment.accessory] : null;
+
+                // Restore AI logic if AI character
+                if (char.controlType === 'AI') {
+                    if (char.name === 'Blayde') {
+                        char.aiLogic = BlaydeAI;
+                    } else if (char.name === 'Serapha') {
+                        char.aiLogic = SeraphaAI;
+                    }
+                }
+
+                return char;
+            });
+
+            // Restore inventory
+            this.inventory.items = saveData.inventory.items;
+            this.inventory.equipment = saveData.inventory.equipment;
+            this.inventory.keyItems = saveData.inventory.keyItems;
+
+            // Restore game tracking
+            this.gil = saveData.gil;
+            this.playTime = saveData.playTime;
+            this.startTime = Date.now(); // Reset start time to now
+
+            // Restore story progress
+            this.currentStoryPhase = saveData.storyPhase;
+            this.hasSeenAwakening = saveData.hasSeenAwakening;
+            this.hasSeenIncident = saveData.hasSeenIncident;
+
+            // Restore player position
+            this.player.x = saveData.playerPosition.x;
+            this.player.y = saveData.playerPosition.y;
+            this.player.direction = saveData.playerPosition.direction;
+
+            console.log('[Game] Save data loaded successfully!');
+            return true;
+        } catch (error) {
+            console.error('[Game] Failed to load game:', error);
+            return false;
+        }
+    }
+
+    saveGame() {
+        try {
+            const success = this.saveSystem.save(this);
+            if (success) {
+                console.log('[Game] Game saved successfully!');
+                this.showMessage && this.showMessage('Game saved!');
+                return true;
+            } else {
+                console.error('[Game] Failed to save game');
+                return false;
+            }
+        } catch (error) {
+            console.error('[Game] Error saving game:', error);
+            return false;
+        }
+    }
+
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
             this.keys[e.key] = true;
@@ -1127,11 +1327,40 @@ class Game {
                 if (this.dialogueSystem.isActive) {
                     this.dialogueSystem.advance();
                 } else if (this.state === 'TITLE') {
-                    this.state = 'CUTSCENE';
-                    // Start with the awakening scene
-                    setTimeout(() => {
-                        this.dialogueSystem.startScene('AWAKENING');
-                    }, 500);
+                    // Check if save data exists
+                    const hasSave = this.saveSystem && this.saveSystem.hasSaveData();
+
+                    if (hasSave) {
+                        // Load the saved game
+                        console.log('[Game] Loading saved game from title screen...');
+                        const success = this.loadGame();
+                        if (success) {
+                            this.state = 'OVERWORLD';
+                            this.showMessage('Welcome back! Game loaded.');
+                        } else {
+                            console.error('[Game] Failed to load save, starting new game');
+                            this.startNewGame();
+                        }
+                    } else {
+                        // No save data, start new game
+                        this.startNewGame();
+                    }
+                }
+            }
+
+            if (e.key === 'n' || e.key === 'N') {
+                // Start new game (even if save exists)
+                if (this.state === 'TITLE') {
+                    const hasSave = this.saveSystem && this.saveSystem.hasSaveData();
+                    if (hasSave) {
+                        // Confirm overwrite if save exists
+                        const confirmed = confirm('Start new game? This will not delete your save file.');
+                        if (confirmed) {
+                            this.startNewGame();
+                        }
+                    } else {
+                        this.startNewGame();
+                    }
                 }
             }
             
@@ -1163,6 +1392,19 @@ class Game {
         });
     }
     
+    startNewGame() {
+        // Reset game state (re-run initGame but don't lose SaveSystem reference)
+        const savedSystemRef = this.saveSystem;
+        this.initGame();
+        this.saveSystem = savedSystemRef;
+
+        // Start the opening cutscene
+        this.state = 'CUTSCENE';
+        setTimeout(() => {
+            this.dialogueSystem.startScene('AWAKENING');
+        }, 500);
+    }
+
     onSceneEnd() {
         // Handle post-scene logic
         if (this.currentStoryPhase === 'AWAKENING') {
@@ -1170,6 +1412,8 @@ class Game {
             this.currentStoryPhase = 'TOWN_EXPLORATION';
             this.state = 'OVERWORLD';
             this.showMessage('You can now explore Leafy Village. Press M for menu. Walk around to trigger events.');
+            // Auto-save after awakening scene
+            setTimeout(() => this.saveGame(), 1000);
         } else if (this.currentStoryPhase === 'INCIDENT') {
             this.hasSeenIncident = true;
             this.currentStoryPhase = 'POST_INCIDENT';
@@ -1182,6 +1426,8 @@ class Game {
             this.currentStoryPhase = 'ADVENTURE';
             this.state = 'OVERWORLD';
             this.showMessage('Blayde and Serapha joined your party! You can now explore and prepare for the Cavern of Whispers.');
+            // Auto-save after gaining new party members
+            setTimeout(() => this.saveGame(), 1000);
         }
     }
     
@@ -1374,14 +1620,33 @@ class Game {
         this.ctx.font = '16px Courier New';
         this.ctx.fillStyle = '#aaaaaa';
         this.ctx.fillText('A game about dealing with terrible AI allies', this.width / 2, 300);
-        
-        // Press Enter
-        if (Math.floor(Date.now() / 500) % 2 === 0) {
+
+        // Menu options
+        const hasSave = this.saveSystem && this.saveSystem.hasSaveData();
+
+        if (hasSave) {
+            // Show Continue and New Game options
             this.ctx.font = '24px Courier New';
-            this.ctx.fillStyle = '#ffd700';
-            this.ctx.fillText('Press ENTER to Start', this.width / 2, 450);
+
+            // Continue option (blinking)
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillText('Press ENTER to Continue', this.width / 2, 420);
+            }
+
+            // New Game option
+            this.ctx.font = '18px Courier New';
+            this.ctx.fillStyle = '#aaaaaa';
+            this.ctx.fillText('Press N for New Game', this.width / 2, 460);
+        } else {
+            // No save - just show start option
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                this.ctx.font = '24px Courier New';
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillText('Press ENTER to Start', this.width / 2, 450);
+            }
         }
-        
+
         this.ctx.restore();
     }
     
@@ -1931,9 +2196,13 @@ class Game {
         this.state = 'OVERWORLD';
         document.getElementById('battle-ui').classList.add('hidden');
         this.battle = null;
-        
+
         if (result === 'victory') {
             this.showMessage('Victory! You gained experience!');
+            // Auto-save after battle victory
+            setTimeout(() => {
+                this.saveGame();
+            }, 500);
         } else {
             this.showMessage('Defeated... Game Over. Press F5 to restart.');
         }
@@ -1964,6 +2233,9 @@ class Game {
                 break;
             case 'inventory':
                 this.showMenuInventory();
+                break;
+            case 'save':
+                this.showMenuSave();
                 break;
             case 'close':
                 this.closeMenu();
@@ -2106,7 +2378,96 @@ class Game {
         const seconds = totalSeconds % 60;
         return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
-    
+
+    showMenuSave() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Save Data</h3>';
+
+        // Check if save data exists
+        const hasSave = this.saveSystem.hasSaveData();
+        const saveInfo = this.saveSystem.getSaveInfo();
+
+        if (hasSave && saveInfo) {
+            const date = new Date(saveInfo.timestamp);
+            const hours = Math.floor(saveInfo.playTime / 3600);
+            const minutes = Math.floor((saveInfo.playTime % 3600) / 60);
+
+            html += `
+                <div style="background: rgba(0,0,50,0.5); border: 2px solid #4169e1; border-radius: 4px; padding: 12px; margin-bottom: 15px;">
+                    <div style="color: #ffd700; font-weight: bold; margin-bottom: 8px;">Current Save File</div>
+                    <div style="font-size: 14px; color: #ccc;">
+                        <div>Story Phase: ${saveInfo.storyPhase}</div>
+                        <div>Party Size: ${saveInfo.partySize}</div>
+                        <div>Play Time: ${hours}h ${minutes}m</div>
+                        <div>Saved: ${date.toLocaleString()}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div style="background: rgba(50,0,0,0.5); border: 2px solid #8b0000; border-radius: 4px; padding: 12px; margin-bottom: 15px;">
+                    <div style="color: #ff6666; font-style: italic;">No save data found</div>
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="menu-option" onclick="game.performSave()" style="margin-bottom: 8px;">
+                Save Game
+            </div>
+        `;
+
+        if (hasSave) {
+            html += `
+                <div class="menu-option" onclick="game.performLoad()" style="margin-bottom: 8px;">
+                    Load Game
+                </div>
+                <div class="menu-option" onclick="game.performDeleteSave()" style="margin-bottom: 8px; border-color: #8b0000;">
+                    Delete Save Data
+                </div>
+            `;
+        }
+
+        details.innerHTML = html;
+    }
+
+    performSave() {
+        const success = this.saveGame();
+        if (success) {
+            this.showMessage('Game saved successfully!');
+            // Refresh the save menu to show updated info
+            this.showMenuSave();
+        } else {
+            this.showMessage('Failed to save game!');
+        }
+    }
+
+    performLoad() {
+        const confirmed = confirm('Load saved game? Any unsaved progress will be lost.');
+        if (confirmed) {
+            const success = this.loadGame();
+            if (success) {
+                this.closeMenu();
+                this.showMessage('Game loaded successfully!');
+            } else {
+                this.showMessage('Failed to load game!');
+            }
+        }
+    }
+
+    performDeleteSave() {
+        const confirmed = confirm('Delete save data? This cannot be undone!');
+        if (confirmed) {
+            const success = this.saveSystem.deleteSave();
+            if (success) {
+                this.showMessage('Save data deleted.');
+                this.showMenuSave(); // Refresh menu
+            } else {
+                this.showMessage('Failed to delete save data!');
+            }
+        }
+    }
+
     closeMenu() {
         this.state = 'OVERWORLD';
         document.getElementById('main-menu').classList.add('hidden');

@@ -1126,6 +1126,9 @@ class Game {
         // Initialize Asset Loader
         this.assetLoader = new AssetLoader(ASSET_MANIFEST);
 
+        // Battle menu event listener cleanup tracking
+        this.battleMenuCleanup = [];
+
         // Start asset loading, then initialize game
         this.loadAssetsAndStart();
         this.setupEventListeners();
@@ -2030,16 +2033,26 @@ class Game {
             actions.splice(1, 0, 'Override');
         }
         
-        mainActions.innerHTML = actions.map(action => 
+        mainActions.innerHTML = actions.map(action =>
             `<div class="menu-option" data-action="${action.toLowerCase()}">${action}</div>`
         ).join('');
-        
-        // Add click handlers
-        mainActions.querySelectorAll('.menu-option').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.action) {
                 const action = option.dataset.action;
                 this.handleBattleMenuSelection(action, character);
-            });
+            }
+        };
+
+        mainActions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: mainActions,
+            event: 'click',
+            handler: handler
         });
     }
     
@@ -2087,21 +2100,32 @@ class Game {
         if (availableAbilities.length === 0) {
             abilityOptions.innerHTML = '<div class="menu-option disabled">No abilities available</div>';
         }
-        
-        abilityOptions.querySelectorAll('.menu-option:not(.disabled)').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option:not(.disabled)');
+            if (option && option.dataset.ability) {
                 const abilityName = option.dataset.ability;
                 const ability = ABILITIES[abilityName];
-                
+
                 this.selectTarget(character, ability.target, (target) => {
-                    this.battle.executePlayerAction({ 
-                        action: 'ability', 
-                        ability: abilityName, 
-                        target 
+                    this.battle.executePlayerAction({
+                        action: 'ability',
+                        ability: abilityName,
+                        target
                     });
                     abilityMenu.classList.add('hidden');
                 });
-            });
+            }
+        };
+
+        abilityOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: abilityOptions,
+            event: 'click',
+            handler: handler
         });
     }
     
@@ -2114,19 +2138,30 @@ class Game {
         
         // Show AI-controlled allies
         const aiAllies = this.party.filter(m => m.controlType === 'AI' && m.stats.hp > 0);
-        targetOptions.innerHTML = aiAllies.map(ally => 
+        targetOptions.innerHTML = aiAllies.map(ally =>
             `<div class="menu-option" data-target="${ally.name}">${ally.name}</div>`
         ).join('');
-        
-        targetOptions.querySelectorAll('.menu-option').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.target) {
                 const targetName = option.dataset.target;
                 const target = this.party.find(m => m.name === targetName);
-                
+
                 // Now select action for the overridden character
                 this.selectOverrideAction(character, target);
                 targetMenu.classList.add('hidden');
-            });
+            }
+        };
+
+        targetOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: targetOptions,
+            event: 'click',
+            handler: handler
         });
     }
     
@@ -2177,22 +2212,36 @@ class Game {
             targetMenu.classList.add('hidden');
             return;
         }
-        
-        targetOptions.innerHTML = targets.map(target => 
+
+        targetOptions.innerHTML = targets.map(target =>
             `<div class="menu-option" data-target="${target.name}">${target.name}</div>`
         ).join('');
-        
-        targetOptions.querySelectorAll('.menu-option').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.target) {
                 const targetName = option.dataset.target;
                 const target = targets.find(t => t.name === targetName);
                 targetMenu.classList.add('hidden');
                 callback(target);
-            });
+            }
+        };
+
+        targetOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: targetOptions,
+            event: 'click',
+            handler: handler
         });
     }
     
     endBattle(result) {
+        // Clean up all battle menu event listeners to prevent memory leaks
+        this.cleanupBattleMenus();
+
         this.state = 'OVERWORLD';
         document.getElementById('battle-ui').classList.add('hidden');
         this.battle = null;
@@ -2206,6 +2255,18 @@ class Game {
         } else {
             this.showMessage('Defeated... Game Over. Press F5 to restart.');
         }
+    }
+
+    cleanupBattleMenus() {
+        // Remove all tracked event listeners to prevent memory leaks
+        this.battleMenuCleanup.forEach(({ element, event, handler }) => {
+            element.removeEventListener(event, handler);
+        });
+
+        // Clear the cleanup array
+        this.battleMenuCleanup = [];
+
+        console.log('[Game] Battle menu event listeners cleaned up');
     }
     
     openMenu() {

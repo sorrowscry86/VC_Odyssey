@@ -674,56 +674,76 @@ class BlaydeAI {
     static decideAction(character, allies, enemies, game) {
         // Blayde's "Artificial Stupidity"
         // 1. Check if he has enough MP for Fire Slash (his "impressive" ability)
-        if (character.stats.mp >= 8 && character.abilities.includes('FIRE_SLASH')) {
+        const fireSlashAbility = ABILITIES.FIRE_SLASH;
+        if (character.abilities.includes('FIRE_SLASH') &&
+            fireSlashAbility &&
+            character.stats.mp >= fireSlashAbility.cost) {
+
+            // Select living enemies only
+            const livingEnemies = enemies.filter(e => e.stats.hp > 0);
+            if (livingEnemies.length > 0) {
+                return {
+                    action: 'ability',
+                    ability: 'FIRE_SLASH',
+                    target: livingEnemies[Math.floor(Math.random() * livingEnemies.length)]
+                };
+            }
+        }
+
+        // 2. Default: Random attack on living enemies
+        const livingEnemies = enemies.filter(e => e.stats.hp > 0);
+        if (livingEnemies.length > 0) {
             return {
-                action: 'ability',
-                ability: 'FIRE_SLASH',
-                target: enemies[Math.floor(Math.random() * enemies.length)]
+                action: 'attack',
+                target: livingEnemies[Math.floor(Math.random() * livingEnemies.length)]
             };
         }
-        
-        // 2. Default: Random attack
-        return {
-            action: 'attack',
-            target: enemies[Math.floor(Math.random() * enemies.length)]
-        };
+
+        // 3. Fallback: Defend if no valid targets
+        return { action: 'defend' };
     }
 }
 
 class SeraphaAI {
     static decideAction(character, allies, enemies, game) {
         // Serapha's inefficient healing AI
-        
+
         // Check if defending and prayer passive triggers
-        if (character.isDefending && ABILITIES.PRAYER.effect()) {
+        if (character.isDefending && ABILITIES.PRAYER && ABILITIES.PRAYER.effect()) {
             return { action: 'pray' }; // Waste turn "praying"
         }
-        
+
         // Try to heal - but inefficiently
         // Start from top of party list
-        for (const ally of allies) {
-            if (ally.stats.hp < ally.stats.maxHp) {
-                // Will heal even if just 1 HP missing
-                if (character.stats.mp >= 4) {
-                    return {
-                        action: 'ability',
-                        ability: 'HEAL',
-                        target: ally
-                    };
+        const healAbility = ABILITIES.HEAL;
+        if (healAbility) {
+            for (const ally of allies) {
+                if (ally.stats.hp > 0 && ally.stats.hp < ally.stats.maxHp) {
+                    // Will heal even if just 1 HP missing
+                    if (character.stats.mp >= healAbility.cost) {
+                        return {
+                            action: 'ability',
+                            ability: 'HEAL',
+                            target: ally
+                        };
+                    }
                 }
             }
         }
-        
+
         // Try to cast Protect on Blayde (repeatedly, even if it doesn't stack)
-        const blayde = allies.find(a => a.name === 'Blayde');
-        if (blayde && character.stats.mp >= 6) {
-            return {
-                action: 'ability',
-                ability: 'PROTECT',
-                target: blayde
-            };
+        const protectAbility = ABILITIES.PROTECT;
+        if (protectAbility) {
+            const blayde = allies.find(a => a.name === 'Blayde' && a.stats.hp > 0);
+            if (blayde && character.stats.mp >= protectAbility.cost) {
+                return {
+                    action: 'ability',
+                    ability: 'PROTECT',
+                    target: blayde
+                };
+            }
         }
-        
+
         // Default: Defend
         return { action: 'defend' };
     }

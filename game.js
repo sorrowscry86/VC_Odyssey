@@ -1,5 +1,211 @@
 // Generic JRPG - Proof of Concept
 // Game Design Document v1.1 Implementation
+// Refactored to sprite-based rendering per Betty's Specification v1.0
+
+// ===== ASSET MANIFEST =====
+const ASSET_MANIFEST = {
+    // Overworld tileset (4 tiles: 2 grass, 2 path)
+    'tileset_world': 'https://placehold.co/128x64/228B22/000000?text=GRASS-1%0AGRASS-2&font=arial',
+    'tileset_path': 'https://placehold.co/128x64/8B4513/FFFFFF?text=PATH-1%0APATH-2&font=arial',
+
+    // Player Sprite Sheet (32x64 sprites)
+    // Layout: [Idle, Walk1, Walk2, Walk3]
+    // Row 1 (y=0):   Walk Down
+    // Row 2 (y=64):  Walk Left
+    // Row 3 (y=128): Walk Right
+    // Row 4 (y=192): Walk Up
+    'sheet_leo': 'https://placehold.co/128x256/0000FF/FFFFFF?text=LeoSheet&font=arial',
+    'sheet_eliza': 'https://placehold.co/128x256/800080/FFFFFF?text=ElizaSheet&font=arial',
+    'sheet_blayde': 'https://placehold.co/128x256/FF0000/FFFFFF?text=BlaydeSheet&font=arial',
+    'sheet_serapha': 'https://placehold.co/128x256/FFC0CB/000000?text=SeraphaSheet&font=arial',
+
+    // Enemy Sprite
+    'enemy_shadow_beast': 'https://placehold.co/64x64/4B0082/FFFFFF?text=Beast&font=arial',
+
+    // UI Elements
+    'ui_window': 'https://placehold.co/128x128/191970/FFFFFF?text=UI-Window&font=arial',
+    'ui_cursor': 'https://placehold.co/32x32/FFFF00/000000?text=Cursor&font=arial'
+};
+
+// ===== ASSET LOADER =====
+class AssetLoader {
+    constructor(manifest) {
+        this.manifest = manifest;
+        this.assets = {};
+        this.totalAssets = 0;
+        this.loadedAssets = 0;
+        this.loadingComplete = false;
+        this.loadingError = null;
+    }
+
+    async loadAll() {
+        const assetKeys = Object.keys(this.manifest);
+        this.totalAssets = assetKeys.length;
+        this.loadedAssets = 0;
+
+        console.log(`[AssetLoader] Loading ${this.totalAssets} assets...`);
+
+        const loadPromises = assetKeys.map(key => this.loadAsset(key, this.manifest[key]));
+
+        try {
+            await Promise.all(loadPromises);
+            this.loadingComplete = true;
+            console.log(`[AssetLoader] All ${this.totalAssets} assets loaded successfully!`);
+            return true;
+        } catch (error) {
+            this.loadingError = error;
+            console.error('[AssetLoader] Failed to load assets:', error);
+            return false;
+        }
+    }
+
+    loadAsset(key, url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+
+            img.onload = () => {
+                this.assets[key] = img;
+                this.loadedAssets++;
+                console.log(`[AssetLoader] Loaded ${key} (${this.loadedAssets}/${this.totalAssets})`);
+                resolve(img);
+            };
+
+            img.onerror = (error) => {
+                console.error(`[AssetLoader] Failed to load ${key} from ${url}`, error);
+                reject(new Error(`Failed to load asset: ${key}`));
+            };
+
+            img.src = url;
+        });
+    }
+
+    getAsset(key) {
+        if (!this.assets[key]) {
+            console.warn(`[AssetLoader] Asset "${key}" not found!`);
+            return null;
+        }
+        return this.assets[key];
+    }
+
+    getLoadingProgress() {
+        if (this.totalAssets === 0) return 0;
+        return Math.floor((this.loadedAssets / this.totalAssets) * 100);
+    }
+}
+
+// ===== SAVE SYSTEM =====
+class SaveSystem {
+    constructor() {
+        this.saveKey = 'genericJRPG_save';
+        this.version = '1.0';
+    }
+
+    save(game) {
+        try {
+            const saveData = {
+                version: this.version,
+                timestamp: Date.now(),
+                party: game.party.map(c => this.serializeCharacter(c)),
+                inventory: {
+                    items: game.inventory.items,
+                    equipment: game.inventory.equipment,
+                    keyItems: game.inventory.keyItems
+                },
+                gil: game.gil,
+                playTime: Math.floor((Date.now() - game.startTime) / 1000) + game.playTime,
+                storyPhase: game.currentStoryPhase,
+                hasSeenAwakening: game.hasSeenAwakening,
+                hasSeenIncident: game.hasSeenIncident,
+                playerPosition: {
+                    x: game.player.x,
+                    y: game.player.y,
+                    direction: game.player.direction
+                }
+            };
+
+            localStorage.setItem(this.saveKey, JSON.stringify(saveData));
+            console.log('[SaveSystem] Game saved successfully');
+            return true;
+        } catch (error) {
+            console.error('[SaveSystem] Failed to save:', error);
+            return false;
+        }
+    }
+
+    load() {
+        try {
+            const data = localStorage.getItem(this.saveKey);
+            if (!data) {
+                console.log('[SaveSystem] No save data found');
+                return null;
+            }
+
+            const saveData = JSON.parse(data);
+
+            // Version check
+            if (saveData.version !== this.version) {
+                console.warn('[SaveSystem] Save version mismatch');
+                // Could implement migration here
+            }
+
+            console.log('[SaveSystem] Save data loaded successfully');
+            return saveData;
+        } catch (error) {
+            console.error('[SaveSystem] Failed to load:', error);
+            return null;
+        }
+    }
+
+    serializeCharacter(character) {
+        return {
+            name: character.name,
+            level: character.level,
+            controlType: character.controlType,
+            archetype: character.archetype,
+            exp: character.exp,
+            stats: { ...character.stats },
+            abilities: [...character.abilities],
+            equipment: {
+                weapon: character.equipment.weapon,
+                armor: character.equipment.armor,
+                accessory: character.equipment.accessory
+            },
+            statusEffects: { ...character.statusEffects }
+        };
+    }
+
+    deleteSave() {
+        try {
+            localStorage.removeItem(this.saveKey);
+            console.log('[SaveSystem] Save data deleted');
+            return true;
+        } catch (error) {
+            console.error('[SaveSystem] Failed to delete save:', error);
+            return false;
+        }
+    }
+
+    hasSaveData() {
+        return localStorage.getItem(this.saveKey) !== null;
+    }
+
+    getSaveInfo() {
+        try {
+            const data = localStorage.getItem(this.saveKey);
+            if (!data) return null;
+
+            const saveData = JSON.parse(data);
+            return {
+                timestamp: saveData.timestamp,
+                playTime: saveData.playTime,
+                storyPhase: saveData.storyPhase,
+                partySize: saveData.party.length
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+}
 
 // ===== CONSTANTS AND DATA =====
 const STATUS_EFFECTS = {
@@ -655,21 +861,54 @@ class BattleSystem {
             this.endBattle('defeat');
             return;
         }
-        
+
+        // Safety counter to prevent infinite loops
+        const maxIterations = this.turnOrder.length * 2;
+        let iterationCount = 0;
+        let foundActiveCharacter = false;
+
         // Move to next character
         do {
+            iterationCount++;
+
+            // INFINITE LOOP PROTECTION
+            if (iterationCount > maxIterations) {
+                console.error('[Battle] Infinite loop detected in nextTurn()!');
+                this.addLog('ERROR: No active characters found!');
+
+                // Emergency recovery: Wake up first sleeping character or end battle
+                const sleepingChar = this.turnOrder.find(c =>
+                    c.stats.hp > 0 && c.hasStatus('SLEEP')
+                );
+
+                if (sleepingChar) {
+                    sleepingChar.removeStatus('SLEEP');
+                    this.addLog(`${sleepingChar.name} forcefully awakens!`);
+                    this.currentCharacter = sleepingChar;
+                    foundActiveCharacter = true;
+                    console.log('[Battle] Emergency recovery: woke up sleeping character');
+                    break;
+                } else {
+                    // No recovery possible - force end battle
+                    console.error('[Battle] No recovery possible, ending battle');
+                    this.addLog('Battle ended due to system error!');
+                    this.endBattle('defeat');
+                    return;
+                }
+            }
+
             this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
             this.currentCharacter = this.turnOrder[this.currentTurnIndex];
-            
+
             // Skip dead characters
             if (this.currentCharacter.stats.hp <= 0) {
                 continue;
             }
-            
+
             // Process status effects at start of turn
             const statusMessages = this.currentCharacter.updateStatusEffects();
             statusMessages.forEach(msg => this.addLog(msg));
-            
+
             // Check if character can act
             if (!this.currentCharacter.canAct()) {
                 if (this.currentCharacter.hasStatus('SLEEP')) {
@@ -679,13 +918,19 @@ class BattleSystem {
                 }
                 continue;
             }
-            
+
+            foundActiveCharacter = true;
             break;
         } while (true);
-        
+
+        // Log if we had to iterate multiple times (potential issue indicator)
+        if (iterationCount > this.turnOrder.length) {
+            console.warn(`[Battle] nextTurn() required ${iterationCount} iterations (turnOrder size: ${this.turnOrder.length})`);
+        }
+
         // Reset defending state
         this.currentCharacter.isDefending = false;
-        
+
         // Determine action based on control type
         if (this.currentCharacter.controlType === 'PLAYER') {
             this.waitForPlayerInput();
@@ -699,100 +944,125 @@ class BattleSystem {
         this.state = 'SELECTING_ACTION';
         this.game.showBattleMenu(this.currentCharacter);
     }
-    
-    executeAITurn() {
-        if (this.isExecuting) return;
-        this.isExecuting = true;
 
-        this.waitingForPlayer = false;
-        const allies = this.party;
-        const enemies = this.enemies;
-        
-        let action;
-        
-        // Check if there's an override action
-        if (this.currentCharacter.overrideAction) {
-            action = this.currentCharacter.overrideAction;
-            this.currentCharacter.overrideAction = null;
-            this.addLog(`[OVERRIDE] ${this.currentCharacter.name}'s action is controlled!`);
-            
-            // Check Headstrong passive (Blayde only)
-            if (this.currentCharacter.name === 'Blayde' && 
-                this.currentCharacter.abilities.includes('HEADSTRONG') && 
-                ABILITIES.HEADSTRONG.effect()) {
-                this.addLog(`${this.currentCharacter.name} ignores the override! (Headstrong)`);
-                action = null;
-            }
-        }
-        
-        // If no override or override was ignored, use AI
-        if (!action) {
-            if (this.currentCharacter.name === 'Blayde') {
-                action = BlaydeAI.decideAction(this.currentCharacter, allies, enemies, this.game);
-            } else if (this.currentCharacter.name === 'Serapha') {
-                action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
-            } else {
-                // Enemy AI - simple attack
-                const livingAllies = allies.filter(a => a.stats.hp > 0);
-                if (livingAllies.length > 0) {
-                    action = {
-                        action: 'attack',
-                        target: livingAllies[Math.floor(Math.random() * livingAllies.length)]
-                    };
+    // Promise-based delay helper to replace setTimeout
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async executeAITurn() {
+        try {
+            if (this.isExecuting) return;
+            this.isExecuting = true;
+
+            this.waitingForPlayer = false;
+            const allies = this.party;
+            const enemies = this.enemies;
+
+            let action;
+
+            // Check if there's an override action
+            if (this.currentCharacter.overrideAction) {
+                action = this.currentCharacter.overrideAction;
+                this.currentCharacter.overrideAction = null;
+                this.addLog(`[OVERRIDE] ${this.currentCharacter.name}'s action is controlled!`);
+
+                // Check Headstrong passive (Blayde only)
+                if (this.currentCharacter.name === 'Blayde' &&
+                    this.currentCharacter.abilities.includes('HEADSTRONG') &&
+                    ABILITIES.HEADSTRONG.effect()) {
+                    this.addLog(`${this.currentCharacter.name} ignores the override! (Headstrong)`);
+                    action = null;
                 }
             }
-        }
-        
-        this.executeAction(action);
-        
-        setTimeout(() => {
-            this.isExecuting = false;
-            this.nextTurn();
-        }, 1500);
-    }
-    
-    executePlayerAction(action) {
-        if (this.isExecuting) return;
-        this.isExecuting = true;
 
-        this.waitingForPlayer = false;
-        this.executeAction(action);
-        
-        setTimeout(() => {
+            // If no override or override was ignored, use AI
+            if (!action) {
+                if (this.currentCharacter.name === 'Blayde') {
+                    action = BlaydeAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+                } else if (this.currentCharacter.name === 'Serapha') {
+                    action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+                } else {
+                    // Enemy AI - simple attack
+                    const livingAllies = allies.filter(a => a.stats.hp > 0);
+                    if (livingAllies.length > 0) {
+                        action = {
+                            action: 'attack',
+                            target: livingAllies[Math.floor(Math.random() * livingAllies.length)]
+                        };
+                    }
+                }
+            }
+
+            this.executeAction(action);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(1500);
+
             this.isExecuting = false;
             this.nextTurn();
-        }, 1500);
+        } catch (error) {
+            console.error('[Battle] Error in executeAITurn:', error);
+            this.addLog('ERROR: AI turn failed!');
+            this.isExecuting = false;
+        }
     }
-    
+
+    async executePlayerAction(action) {
+        try {
+            if (this.isExecuting) return;
+            this.isExecuting = true;
+
+            this.waitingForPlayer = false;
+            this.executeAction(action);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(1500);
+
+            this.isExecuting = false;
+            this.nextTurn();
+        } catch (error) {
+            console.error('[Battle] Error executing player action:', error);
+            this.addLog('ERROR: Action failed!');
+            this.isExecuting = false;
+        }
+    }
+
     executeAction(action) {
-        const actor = this.currentCharacter;
-        
-        if (action.action === 'attack') {
-            const damage = Math.floor(actor.stats.STR * 0.8 + Math.random() * 10);
-            const actualDamage = action.target.takeDamage(damage);
-            this.addLog(`${actor.name} attacks ${action.target.name} for ${actualDamage} damage!`);
-            
-            // Wake up sleeping targets
-            if (action.target.hasStatus('SLEEP')) {
-                action.target.removeStatus('SLEEP');
-                this.addLog(`${action.target.name} wakes up!`);
+        try {
+            const actor = this.currentCharacter;
+
+            if (action.action === 'attack') {
+                const damage = Math.floor(actor.stats.STR * 0.8 + Math.random() * 10);
+                const actualDamage = action.target.takeDamage(damage);
+                this.addLog(`${actor.name} attacks ${action.target.name} for ${actualDamage} damage!`);
+
+                // Wake up sleeping targets
+                if (action.target.hasStatus('SLEEP')) {
+                    action.target.removeStatus('SLEEP');
+                    this.addLog(`${action.target.name} wakes up!`);
+                }
+            } else if (action.action === 'defend') {
+                actor.isDefending = true;
+                this.addLog(`${actor.name} defends!`);
+            } else if (action.action === 'ability') {
+                const ability = ABILITIES[action.ability];
+                if (ability && actor.stats.mp >= ability.cost) {
+                    actor.stats.mp -= ability.cost;
+                    const message = ability.effect(actor, action.target, this.game);
+                    this.addLog(message);
+                }
+            } else if (action.action === 'pray') {
+                this.addLog(`${actor.name} prays... (nothing happens)`);
+            } else if (action.action === 'override') {
+                // Set override for target
+                action.target.overrideAction = action.overrideAction;
+                this.addLog(`${actor.name} will control ${action.target.name}'s next action!`);
             }
-        } else if (action.action === 'defend') {
-            actor.isDefending = true;
-            this.addLog(`${actor.name} defends!`);
-        } else if (action.action === 'ability') {
-            const ability = ABILITIES[action.ability];
-            if (ability && actor.stats.mp >= ability.cost) {
-                actor.stats.mp -= ability.cost;
-                const message = ability.effect(actor, action.target, this.game);
-                this.addLog(message);
-            }
-        } else if (action.action === 'pray') {
-            this.addLog(`${actor.name} prays... (nothing happens)`);
-        } else if (action.action === 'override') {
-            // Set override for target
-            action.target.overrideAction = action.overrideAction;
-            this.addLog(`${actor.name} will control ${action.target.name}'s next action!`);
+        } catch (error) {
+            console.error('[Battle] Error in executeAction:', error);
+            this.addLog(`ERROR: ${actor?.name || 'Action'} failed!`);
+            throw error; // Re-throw to be caught by executePlayerAction
         }
     }
     
@@ -803,12 +1073,12 @@ class BattleSystem {
         }
     }
     
-    endBattle(result) {
+    async endBattle(result) {
         this.state = 'BATTLE_END';
-        
+
         if (result === 'victory') {
             this.addLog('Victory!');
-            
+
             // Award EXP
             const totalExp = this.enemies.reduce((sum, enemy) => sum + (enemy.expReward || 50), 0);
             this.party.forEach(member => {
@@ -817,7 +1087,7 @@ class BattleSystem {
                     levelUpMessages.forEach(msg => this.addLog(msg));
                 }
             });
-            
+
             // Clear non-persistent status effects
             this.party.forEach(member => {
                 for (const status in member.statusEffects) {
@@ -826,15 +1096,16 @@ class BattleSystem {
                     }
                 }
             });
-            
-            setTimeout(() => {
-                this.game.endBattle('victory');
-            }, 3000);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(3000);
+            this.game.endBattle('victory');
         } else {
             this.addLog('Defeat...');
-            setTimeout(() => {
-                this.game.endBattle('defeat');
-            }, 3000);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(3000);
+            this.game.endBattle('defeat');
         }
     }
 }
@@ -913,13 +1184,37 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.width = this.canvas.width;
         this.height = this.canvas.height;
-        
-        this.state = 'TITLE'; // TITLE, OVERWORLD, BATTLE, MENU
+
+        this.state = 'LOADING'; // LOADING, TITLE, OVERWORLD, BATTLE, MENU
         this.keys = {};
-        
-        this.initGame();
+
+        // Initialize Asset Loader
+        this.assetLoader = new AssetLoader(ASSET_MANIFEST);
+
+        // Battle menu event listener cleanup tracking
+        this.battleMenuCleanup = [];
+
+        // Start asset loading, then initialize game
+        this.loadAssetsAndStart();
         this.setupEventListeners();
         this.gameLoop();
+    }
+
+    async loadAssetsAndStart() {
+        try {
+            const success = await this.assetLoader.loadAll();
+            if (success) {
+                console.log('[Game] Assets loaded successfully, initializing game...');
+                this.initGame();
+                this.state = 'TITLE';
+            } else {
+                console.error('[Game] Failed to load assets');
+                this.state = 'ERROR';
+            }
+        } catch (error) {
+            console.error('[Game] Error during asset loading:', error);
+            this.state = 'ERROR';
+        }
     }
     
     initGame() {
@@ -974,7 +1269,10 @@ class Game {
         
         this.inventory = new Inventory();
         this.battle = null;
-        
+
+        // Save System
+        this.saveSystem = new SaveSystem();
+
         // Game tracking
         this.gil = 500; // Starting money
         this.startTime = Date.now();
@@ -993,14 +1291,101 @@ class Game {
             x: 400,
             y: 300,
             direction: 'down',
-            speed: 2.5
+            speed: 2.5,
+            // Animation properties (per Betty's spec)
+            frame: 0,
+            animationTimer: 0,
+            animationThreshold: 10 // Frames before advancing animation
         };
         
         this.encounterTimer = 0;
         this.titleBlink = 0;
         this.menuState = null;
     }
-    
+
+    loadGame() {
+        try {
+            const saveData = this.saveSystem.load();
+            if (!saveData) {
+                console.log('[Game] No save data to load');
+                return false;
+            }
+
+            console.log('[Game] Loading save data...');
+
+            // Restore party
+            this.party = saveData.party.map(charData => {
+                const char = new Character(charData);
+                char.level = charData.level;
+                char.exp = charData.exp;
+                char.stats = { ...charData.stats };
+                char.statusEffects = { ...charData.statusEffects };
+                char.controlType = charData.controlType;
+                char.archetype = charData.archetype;
+                char.abilities = [...charData.abilities];
+
+                // Restore equipment
+                char.equipment.weapon = charData.equipment.weapon ? EQUIPMENT_DATA[charData.equipment.weapon] : null;
+                char.equipment.armor = charData.equipment.armor ? EQUIPMENT_DATA[charData.equipment.armor] : null;
+                char.equipment.accessory = charData.equipment.accessory ? EQUIPMENT_DATA[charData.equipment.accessory] : null;
+
+                // Restore AI logic if AI character
+                if (char.controlType === 'AI') {
+                    if (char.name === 'Blayde') {
+                        char.aiLogic = BlaydeAI;
+                    } else if (char.name === 'Serapha') {
+                        char.aiLogic = SeraphaAI;
+                    }
+                }
+
+                return char;
+            });
+
+            // Restore inventory
+            this.inventory.items = saveData.inventory.items;
+            this.inventory.equipment = saveData.inventory.equipment;
+            this.inventory.keyItems = saveData.inventory.keyItems;
+
+            // Restore game tracking
+            this.gil = saveData.gil;
+            this.playTime = saveData.playTime;
+            this.startTime = Date.now(); // Reset start time to now
+
+            // Restore story progress
+            this.currentStoryPhase = saveData.storyPhase;
+            this.hasSeenAwakening = saveData.hasSeenAwakening;
+            this.hasSeenIncident = saveData.hasSeenIncident;
+
+            // Restore player position
+            this.player.x = saveData.playerPosition.x;
+            this.player.y = saveData.playerPosition.y;
+            this.player.direction = saveData.playerPosition.direction;
+
+            console.log('[Game] Save data loaded successfully!');
+            return true;
+        } catch (error) {
+            console.error('[Game] Failed to load game:', error);
+            return false;
+        }
+    }
+
+    saveGame() {
+        try {
+            const success = this.saveSystem.save(this);
+            if (success) {
+                console.log('[Game] Game saved successfully!');
+                this.showMessage && this.showMessage('Game saved!');
+                return true;
+            } else {
+                console.error('[Game] Failed to save game');
+                return false;
+            }
+        } catch (error) {
+            console.error('[Game] Error saving game:', error);
+            return false;
+        }
+    }
+
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
             this.keys[e.key] = true;
@@ -1010,11 +1395,40 @@ class Game {
                 if (this.dialogueSystem.isActive) {
                     this.dialogueSystem.advance();
                 } else if (this.state === 'TITLE') {
-                    this.state = 'CUTSCENE';
-                    // Start with the awakening scene
-                    setTimeout(() => {
-                        this.dialogueSystem.startScene('AWAKENING');
-                    }, 500);
+                    // Check if save data exists
+                    const hasSave = this.saveSystem && this.saveSystem.hasSaveData();
+
+                    if (hasSave) {
+                        // Load the saved game
+                        console.log('[Game] Loading saved game from title screen...');
+                        const success = this.loadGame();
+                        if (success) {
+                            this.state = 'OVERWORLD';
+                            this.showMessage('Welcome back! Game loaded.');
+                        } else {
+                            console.error('[Game] Failed to load save, starting new game');
+                            this.startNewGame();
+                        }
+                    } else {
+                        // No save data, start new game
+                        this.startNewGame();
+                    }
+                }
+            }
+
+            if (e.key === 'n' || e.key === 'N') {
+                // Start new game (even if save exists)
+                if (this.state === 'TITLE') {
+                    const hasSave = this.saveSystem && this.saveSystem.hasSaveData();
+                    if (hasSave) {
+                        // Confirm overwrite if save exists
+                        const confirmed = confirm('Start new game? This will not delete your save file.');
+                        if (confirmed) {
+                            this.startNewGame();
+                        }
+                    } else {
+                        this.startNewGame();
+                    }
                 }
             }
             
@@ -1046,6 +1460,19 @@ class Game {
         });
     }
     
+    startNewGame() {
+        // Reset game state (re-run initGame but don't lose SaveSystem reference)
+        const savedSystemRef = this.saveSystem;
+        this.initGame();
+        this.saveSystem = savedSystemRef;
+
+        // Start the opening cutscene
+        this.state = 'CUTSCENE';
+        setTimeout(() => {
+            this.dialogueSystem.startScene('AWAKENING');
+        }, 500);
+    }
+
     onSceneEnd() {
         // Handle post-scene logic
         if (this.currentStoryPhase === 'AWAKENING') {
@@ -1053,6 +1480,8 @@ class Game {
             this.currentStoryPhase = 'TOWN_EXPLORATION';
             this.state = 'OVERWORLD';
             this.showMessage('You can now explore Leafy Village. Press M for menu. Walk around to trigger events.');
+            // Auto-save after awakening scene
+            setTimeout(() => this.saveGame(), 1000);
         } else if (this.currentStoryPhase === 'INCIDENT') {
             this.hasSeenIncident = true;
             this.currentStoryPhase = 'POST_INCIDENT';
@@ -1065,6 +1494,8 @@ class Game {
             this.currentStoryPhase = 'ADVENTURE';
             this.state = 'OVERWORLD';
             this.showMessage('Blayde and Serapha joined your party! You can now explore and prepare for the Cavern of Whispers.');
+            // Auto-save after gaining new party members
+            setTimeout(() => this.saveGame(), 1000);
         }
     }
     
@@ -1085,21 +1516,31 @@ class Game {
     }
     
     gameLoop() {
-        this.update();
-        this.render();
+        try {
+            this.update();
+            this.render();
+        } catch (error) {
+            console.error('[Game Loop] Critical error:', error);
+            this.handleCriticalError(error, 'Game Loop');
+        }
         requestAnimationFrame(() => this.gameLoop());
     }
-    
+
     update() {
-        if (this.state === 'OVERWORLD') {
-            this.updateOverworld();
+        try {
+            if (this.state === 'OVERWORLD') {
+                this.updateOverworld();
+            }
+        } catch (error) {
+            console.error('[Update] Error during update:', error);
+            throw error; // Re-throw to be caught by gameLoop
         }
     }
     
     updateOverworld() {
         const player = this.player;
         let moved = false;
-        
+
         if (this.keys['ArrowUp']) {
             player.y -= player.speed;
             player.direction = 'up';
@@ -1120,33 +1561,107 @@ class Game {
             player.direction = 'right';
             moved = true;
         }
-        
+
         // Keep player in bounds
         player.x = Math.max(32, Math.min(this.width - 32, player.x));
         player.y = Math.max(32, Math.min(this.height - 32, player.y));
-        
-        // Random encounters
+
+        // Animation logic (per Betty's spec)
         if (moved) {
+            player.animationTimer++;
+            if (player.animationTimer >= player.animationThreshold) {
+                player.frame = (player.frame + 1) % 4; // Cycle through 4 frames
+                player.animationTimer = 0;
+            }
+
+            // Random encounters
             this.encounterTimer++;
             if (this.encounterTimer > 120 && Math.random() < 0.015) {
                 this.startBattle();
                 this.encounterTimer = 0;
             }
+        } else {
+            // Reset to idle frame when not moving
+            player.frame = 0;
+            player.animationTimer = 0;
         }
     }
     
     render() {
-        this.ctx.clearRect(0, 0, this.width, this.height);
-        
-        if (this.state === 'TITLE') {
-            this.renderTitle();
-        } else if (this.state === 'OVERWORLD') {
-            this.renderOverworld();
-        } else if (this.state === 'BATTLE') {
-            this.renderBattle();
+        try {
+            this.ctx.clearRect(0, 0, this.width, this.height);
+
+            if (this.state === 'LOADING') {
+                this.renderLoading();
+            } else if (this.state === 'ERROR') {
+                this.renderError();
+            } else if (this.state === 'TITLE') {
+                this.renderTitle();
+            } else if (this.state === 'OVERWORLD') {
+                this.renderOverworld();
+            } else if (this.state === 'BATTLE') {
+                this.renderBattle();
+            }
+        } catch (error) {
+            console.error('[Render] Error during render:', error);
+            throw error; // Re-throw to be caught by gameLoop
         }
     }
-    
+
+    renderLoading() {
+        // Background
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Loading text
+        this.ctx.font = '32px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText('Loading Assets...', this.width / 2, this.height / 2 - 20);
+
+        // Progress bar
+        const progress = this.assetLoader.getLoadingProgress();
+        const barWidth = 400;
+        const barHeight = 30;
+        const barX = this.width / 2 - barWidth / 2;
+        const barY = this.height / 2 + 20;
+
+        // Bar background
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(barX, barY, barWidth, barHeight);
+
+        // Bar fill
+        this.ctx.fillStyle = '#4CAF50';
+        this.ctx.fillRect(barX, barY, (barWidth * progress) / 100, barHeight);
+
+        // Percentage text
+        this.ctx.font = '20px Courier New';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText(`${progress}%`, this.width / 2, barY + barHeight / 2 + 7);
+    }
+
+    renderError() {
+        // Background
+        this.ctx.fillStyle = '#300';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Error text
+        this.ctx.font = '32px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillStyle = '#f00';
+        this.ctx.fillText('ERROR LOADING ASSETS', this.width / 2, this.height / 2 - 40);
+
+        this.ctx.font = '18px Courier New';
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillText('Please refresh the page', this.width / 2, this.height / 2 + 10);
+
+        if (this.assetLoader.loadingError) {
+            this.ctx.font = '14px Courier New';
+            this.ctx.fillStyle = '#aaa';
+            this.ctx.fillText(this.assetLoader.loadingError.message, this.width / 2, this.height / 2 + 40);
+        }
+    }
+
     renderTitle() {
         // Background gradient
         const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
@@ -1188,214 +1703,169 @@ class Game {
         this.ctx.font = '16px Courier New';
         this.ctx.fillStyle = '#aaaaaa';
         this.ctx.fillText('A game about dealing with terrible AI allies', this.width / 2, 300);
-        
-        // Press Enter
-        if (Math.floor(Date.now() / 500) % 2 === 0) {
+
+        // Menu options
+        const hasSave = this.saveSystem && this.saveSystem.hasSaveData();
+
+        if (hasSave) {
+            // Show Continue and New Game options
             this.ctx.font = '24px Courier New';
-            this.ctx.fillStyle = '#ffd700';
-            this.ctx.fillText('Press ENTER to Start', this.width / 2, 450);
+
+            // Continue option (blinking)
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillText('Press ENTER to Continue', this.width / 2, 420);
+            }
+
+            // New Game option
+            this.ctx.font = '18px Courier New';
+            this.ctx.fillStyle = '#aaaaaa';
+            this.ctx.fillText('Press N for New Game', this.width / 2, 460);
+        } else {
+            // No save - just show start option
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                this.ctx.font = '24px Courier New';
+                this.ctx.fillStyle = '#ffd700';
+                this.ctx.fillText('Press ENTER to Start', this.width / 2, 450);
+            }
         }
-        
+
         this.ctx.restore();
     }
     
     renderOverworld() {
-        // Draw enhanced grass field with texture variation (FF6 style)
-        for (let y = 0; y < this.height; y += 16) {
-            for (let x = 0; x < this.width; x += 16) {
-                // Create varied grass pattern
-                const pattern = (x / 16 + y / 16) % 4;
-                let baseColor, accentColor;
-                
-                if (pattern === 0) {
-                    baseColor = '#3a6b1f';
-                    accentColor = '#2d5016';
-                } else if (pattern === 1) {
-                    baseColor = '#2d5016';
-                    accentColor = '#3a6b1f';
-                } else if (pattern === 2) {
-                    baseColor = '#2a4c14';
-                    accentColor = '#3a6b1f';
-                } else {
-                    baseColor = '#335919';
-                    accentColor = '#2d5016';
-                }
-                
-                // Base grass tile
-                this.ctx.fillStyle = baseColor;
-                this.ctx.fillRect(x, y, 16, 16);
-                
-                // Add grass detail pixels (FF6 style)
-                this.ctx.fillStyle = accentColor;
-                const seed = x * 7 + y * 13;
-                if (seed % 3 === 0) {
-                    this.ctx.fillRect(x + 2, y + 3, 2, 3);
-                    this.ctx.fillRect(x + 8, y + 6, 2, 3);
-                    this.ctx.fillRect(x + 12, y + 2, 2, 3);
-                }
-                if (seed % 5 === 0) {
-                    this.ctx.fillRect(x + 5, y + 10, 2, 2);
-                    this.ctx.fillRect(x + 11, y + 11, 2, 2);
-                }
-                
-                // Dark grass blades
-                this.ctx.fillStyle = '#1a3c0f';
-                if (seed % 7 === 0) {
-                    this.ctx.fillRect(x + 3, y + 5, 1, 2);
-                    this.ctx.fillRect(x + 9, y + 8, 1, 2);
-                }
+        // SPRITE-BASED RENDERING (per Betty's spec)
+        // Draw grass tiles using sprite sheet
+        const grassTileset = this.assetLoader.getAsset('tileset_world');
+        const pathTileset = this.assetLoader.getAsset('tileset_path');
+
+        if (!grassTileset || !pathTileset) {
+            // Fallback if assets not loaded
+            this.ctx.fillStyle = '#2d5016';
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = '20px Courier New';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Assets loading...', this.width / 2, this.height / 2);
+            return;
+        }
+
+        const tileSize = 32; // Each tile is 32x32 in the sprite sheet (64x64 has 2 tiles)
+
+        // Draw grass field (tiled pattern)
+        for (let y = 0; y < this.height; y += tileSize) {
+            for (let x = 0; x < this.width; x += tileSize) {
+                // Alternate between grass tile 1 and grass tile 2
+                const tileIndex = ((x / tileSize) + (y / tileSize)) % 2;
+                const sx = tileIndex * tileSize; // 0 or 32
+                const sy = 0; // Top row (grassTileset is 64x32)
+
+                this.ctx.drawImage(
+                    grassTileset,
+                    sx, sy, tileSize, tileSize, // Source rectangle
+                    x, y, tileSize, tileSize    // Destination rectangle
+                );
             }
         }
-        
-        // Draw detailed dirt paths with texture
+
+        // Draw paths using path tileset
         const pathCenterX = this.width / 2;
         const pathCenterY = this.height / 2;
-        
+        const pathWidth = 80;
+
         // Vertical path
-        for (let y = 0; y < this.height; y += 8) {
-            for (let px = pathCenterX - 40; px < pathCenterX + 40; px += 8) {
-                const lightness = (px + y) % 3;
-                if (lightness === 0) {
-                    this.ctx.fillStyle = '#b8956a';
-                } else if (lightness === 1) {
-                    this.ctx.fillStyle = '#a0826d';
-                } else {
-                    this.ctx.fillStyle = '#8b7355';
-                }
-                this.ctx.fillRect(px, y, 8, 8);
-                
-                // Add dirt texture
-                if ((px + y) % 11 === 0) {
-                    this.ctx.fillStyle = '#735d47';
-                    this.ctx.fillRect(px + 2, y + 2, 2, 2);
-                }
+        for (let y = 0; y < this.height; y += tileSize) {
+            for (let px = pathCenterX - pathWidth; px < pathCenterX + pathWidth; px += tileSize) {
+                const tileIndex = ((px / tileSize) + (y / tileSize)) % 2;
+                const sx = tileIndex * tileSize;
+                const sy = 0;
+
+                this.ctx.drawImage(
+                    pathTileset,
+                    sx, sy, tileSize, tileSize,
+                    px, y, tileSize, tileSize
+                );
             }
         }
-        
+
         // Horizontal path
-        for (let x = 0; x < this.width; x += 8) {
-            for (let py = pathCenterY - 40; py < pathCenterY + 40; py += 8) {
-                const lightness = (x + py) % 3;
-                if (lightness === 0) {
-                    this.ctx.fillStyle = '#b8956a';
-                } else if (lightness === 1) {
-                    this.ctx.fillStyle = '#a0826d';
-                } else {
-                    this.ctx.fillStyle = '#8b7355';
-                }
-                this.ctx.fillRect(x, py, 8, 8);
-                
-                // Add dirt texture
-                if ((x + py) % 11 === 0) {
-                    this.ctx.fillStyle = '#735d47';
-                    this.ctx.fillRect(x + 2, py + 2, 2, 2);
-                }
+        for (let x = 0; x < this.width; x += tileSize) {
+            for (let py = pathCenterY - pathWidth; py < pathCenterY + pathWidth; py += tileSize) {
+                const tileIndex = ((x / tileSize) + (py / tileSize)) % 2;
+                const sx = tileIndex * tileSize;
+                const sy = 0;
+
+                this.ctx.drawImage(
+                    pathTileset,
+                    sx, sy, tileSize, tileSize,
+                    x, py, tileSize, tileSize
+                );
             }
         }
-        
+
         // Draw player
         this.drawPlayer();
-        
+
         // Draw HUD
         this.drawOverworldHUD();
     }
     
     drawPlayer() {
+        // SPRITE-BASED PLAYER RENDERING (per Betty's spec)
         const p = this.player;
-        
-        // Shadow (more detailed)
+        const leoSheet = this.assetLoader.getAsset('sheet_leo');
+
+        if (!leoSheet) {
+            // Fallback: Simple colored square if sprite not loaded
+            this.ctx.fillStyle = '#0000FF';
+            this.ctx.fillRect(p.x - 16, p.y - 32, 32, 64);
+            return;
+        }
+
+        // Draw shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.beginPath();
         this.ctx.ellipse(p.x, p.y + 20, 12, 6, 0, 0, Math.PI * 2);
         this.ctx.fill();
-        
-        // Draw Leo in Chrono Trigger style (more detailed sprite)
-        // Legs
-        this.ctx.fillStyle = '#2c3e50';
-        this.ctx.fillRect(p.x - 8, p.y + 8, 6, 10);
-        this.ctx.fillRect(p.x + 2, p.y + 8, 6, 10);
-        
-        // Boots
-        this.ctx.fillStyle = '#1a1a1a';
-        this.ctx.fillRect(p.x - 8, p.y + 14, 6, 4);
-        this.ctx.fillRect(p.x + 2, p.y + 14, 6, 4);
-        
-        // Body - blue tunic with detail
-        this.ctx.fillStyle = '#3498db';
-        this.ctx.fillRect(p.x - 10, p.y - 6, 20, 14);
-        
-        // Tunic shadows/highlights
-        this.ctx.fillStyle = '#2980b9';
-        this.ctx.fillRect(p.x + 6, p.y - 6, 4, 14);
-        this.ctx.fillStyle = '#5dade2';
-        this.ctx.fillRect(p.x - 10, p.y - 6, 4, 4);
-        
-        // Belt
-        this.ctx.fillStyle = '#8b4513';
-        this.ctx.fillRect(p.x - 10, p.y + 4, 20, 3);
-        
-        // Belt buckle
-        this.ctx.fillStyle = '#ffd700';
-        this.ctx.fillRect(p.x - 2, p.y + 4, 4, 3);
-        
-        // Arms
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 14, p.y - 2, 4, 10);
-        this.ctx.fillRect(p.x + 10, p.y - 2, 4, 10);
-        
-        // Arm highlights
-        this.ctx.fillStyle = '#ffebd4';
-        this.ctx.fillRect(p.x - 14, p.y - 2, 2, 4);
-        this.ctx.fillRect(p.x + 10, p.y - 2, 2, 4);
-        
-        // Neck
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 4, p.y - 8, 8, 4);
-        
-        // Head - more detailed
-        this.ctx.fillStyle = '#ffdbac';
-        this.ctx.fillRect(p.x - 8, p.y - 20, 16, 14);
-        
-        // Face highlights
-        this.ctx.fillStyle = '#ffebd4';
-        this.ctx.fillRect(p.x - 7, p.y - 19, 6, 6);
-        
-        // Face shadows
-        this.ctx.fillStyle = '#e8c4a3';
-        this.ctx.fillRect(p.x + 4, p.y - 16, 4, 10);
-        
-        // Hair - spiky anime style
-        this.ctx.fillStyle = '#654321';
-        // Back hair
-        this.ctx.fillRect(p.x - 8, p.y - 24, 16, 6);
-        // Hair spikes
-        this.ctx.fillRect(p.x - 10, p.y - 26, 4, 4);
-        this.ctx.fillRect(p.x - 4, p.y - 28, 4, 4);
-        this.ctx.fillRect(p.x + 2, p.y - 26, 4, 4);
-        this.ctx.fillRect(p.x + 8, p.y - 24, 4, 4);
-        
-        // Hair highlights
-        this.ctx.fillStyle = '#8b6f47';
-        this.ctx.fillRect(p.x - 6, p.y - 24, 4, 2);
-        this.ctx.fillRect(p.x - 2, p.y - 26, 2, 2);
-        
-        // Eyes
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(p.x - 6, p.y - 14, 3, 3);
-        this.ctx.fillRect(p.x + 3, p.y - 14, 3, 3);
-        
-        // Eye whites
-        this.ctx.fillStyle = '#fff';
-        this.ctx.fillRect(p.x - 5, p.y - 13, 1, 1);
-        this.ctx.fillRect(p.x + 4, p.y - 13, 1, 1);
-        
-        // Nose
-        this.ctx.fillStyle = '#e8c4a3';
-        this.ctx.fillRect(p.x, p.y - 11, 2, 2);
-        
-        // Mouth
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(p.x - 2, p.y - 8, 4, 1);
+
+        // Determine sprite coordinates based on direction and animation frame
+        const spriteWidth = 32;  // Each frame is 32 pixels wide
+        const spriteHeight = 64; // Each frame is 64 pixels tall
+
+        // Calculate source X (which animation frame: 0-3)
+        const sx = p.frame * spriteWidth; // frame 0-3 = sx 0, 32, 64, 96
+
+        // Calculate source Y (which direction row)
+        let sy = 0;
+        switch (p.direction) {
+            case 'down':
+                sy = 0;   // Row 1
+                break;
+            case 'left':
+                sy = 64;  // Row 2
+                break;
+            case 'right':
+                sy = 128; // Row 3
+                break;
+            case 'up':
+                sy = 192; // Row 4
+                break;
+        }
+
+        // Draw the sprite (9-argument drawImage for clipping)
+        this.ctx.drawImage(
+            leoSheet,                              // Image source
+            sx, sy, spriteWidth, spriteHeight,     // Source rectangle (clip from sprite sheet)
+            p.x - 16, p.y - 32,                    // Destination position (centered on player position)
+            spriteWidth, spriteHeight              // Destination size (1x scale)
+        );
+
+        // Debug info (optional - can remove later)
+        if (false) { // Set to true to see debug info
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = '10px Courier New';
+            this.ctx.fillText(`F:${p.frame} D:${p.direction}`, p.x - 20, p.y - 40);
+        }
     }
     
     drawOverworldHUD() {
@@ -1456,271 +1926,89 @@ class Game {
     }
     
     drawBattleCharacter(x, y, character, isHero) {
-        // Draw FF6/Chrono Trigger quality battle sprites
+        // SPRITE-BASED BATTLE RENDERING (per Betty's spec)
+        let sprite = null;
+        let spriteWidth = 32;
+        let spriteHeight = 64;
+
         if (isHero) {
-            // Determine which hero to draw
-            if (character.name === 'Leo') {
-                // Leo - detailed battle sprite
-                // Legs & boots
-                this.ctx.fillStyle = '#2c3e50';
-                this.ctx.fillRect(x - 12, y + 10, 10, 14);
-                this.ctx.fillRect(x + 2, y + 10, 10, 14);
-                this.ctx.fillStyle = '#1a1a1a';
-                this.ctx.fillRect(x - 12, y + 18, 10, 6);
-                this.ctx.fillRect(x + 2, y + 18, 10, 6);
-                
-                // Body - blue tunic
-                this.ctx.fillStyle = '#3498db';
-                this.ctx.fillRect(x - 16, y - 8, 32, 18);
-                this.ctx.fillStyle = '#2980b9';
-                this.ctx.fillRect(x + 8, y - 8, 8, 18);
-                this.ctx.fillStyle = '#5dade2';
-                this.ctx.fillRect(x - 16, y - 8, 8, 6);
-                
-                // Belt
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x - 16, y + 6, 32, 4);
-                this.ctx.fillStyle = '#ffd700';
-                this.ctx.fillRect(x - 3, y + 6, 6, 4);
-                
-                // Arms
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 20, y - 2, 6, 14);
-                this.ctx.fillRect(x + 14, y - 2, 6, 14);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 20, y - 2, 3, 6);
-                this.ctx.fillRect(x + 14, y - 2, 3, 6);
-                
-                // Shield (left arm)
-                this.ctx.fillStyle = '#c0c0c0';
-                this.ctx.fillRect(x - 24, y + 2, 8, 12);
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x - 22, y + 4, 4, 8);
-                
-                // Sword (right arm)
-                this.ctx.fillStyle = '#c0c0c0';
-                this.ctx.fillRect(x + 18, y - 6, 4, 16);
-                this.ctx.fillStyle = '#ffd700';
-                this.ctx.fillRect(x + 17, y + 8, 6, 4);
-                
-                // Neck
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 6, y - 12, 12, 6);
-                
-                // Head
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 11, y - 31, 10, 10);
-                this.ctx.fillStyle = '#e8c4a3';
-                this.ctx.fillRect(x + 6, y - 28, 6, 16);
-                
-                // Hair - spiky
-                this.ctx.fillStyle = '#654321';
-                this.ctx.fillRect(x - 12, y - 38, 24, 8);
-                this.ctx.fillRect(x - 14, y - 40, 6, 6);
-                this.ctx.fillRect(x - 6, y - 42, 6, 6);
-                this.ctx.fillRect(x + 2, y - 40, 6, 6);
-                this.ctx.fillRect(x + 10, y - 38, 6, 6);
-                this.ctx.fillStyle = '#8b6f47';
-                this.ctx.fillRect(x - 10, y - 38, 6, 3);
-                
-                // Eyes
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 8, y - 24, 4, 4);
-                this.ctx.fillRect(x + 4, y - 24, 4, 4);
-                this.ctx.fillStyle = '#fff';
-                this.ctx.fillRect(x - 7, y - 23, 2, 2);
-                this.ctx.fillRect(x + 5, y - 23, 2, 2);
-                
-                // Mouth
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 4, y - 16, 8, 2);
-            } else if (character.name === 'Eliza') {
-                // Eliza - mage style
-                // Robe bottom
-                this.ctx.fillStyle = '#8e44ad';
-                this.ctx.fillRect(x - 14, y + 8, 28, 16);
-                this.ctx.fillStyle = '#9b59b6';
-                this.ctx.fillRect(x - 14, y + 8, 10, 16);
-                
-                // Robe middle
-                this.ctx.fillStyle = '#8e44ad';
-                this.ctx.fillRect(x - 16, y - 8, 32, 16);
-                this.ctx.fillStyle = '#9b59b6';
-                this.ctx.fillRect(x - 16, y - 8, 12, 12);
-                
-                // Belt/sash
-                this.ctx.fillStyle = '#e8b923';
-                this.ctx.fillRect(x - 16, y + 4, 32, 4);
-                
-                // Arms
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 20, y - 2, 6, 12);
-                this.ctx.fillRect(x + 14, y - 2, 6, 12);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 20, y - 2, 3, 5);
-                
-                // Staff (right hand)
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x + 18, y - 12, 3, 28);
-                // Staff orb
-                this.ctx.fillStyle = '#00f';
-                this.ctx.fillRect(x + 16, y - 16, 7, 7);
-                this.ctx.fillStyle = '#88f';
-                this.ctx.fillRect(x + 17, y - 15, 3, 3);
-                
-                // Book (left hand)
-                this.ctx.fillStyle = '#8b4513';
-                this.ctx.fillRect(x - 24, y + 2, 8, 10);
-                this.ctx.fillStyle = '#d4af37';
-                this.ctx.fillRect(x - 23, y + 3, 2, 8);
-                
-                // Neck
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 6, y - 12, 12, 6);
-                
-                // Head
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ffebd4';
-                this.ctx.fillRect(x - 11, y - 31, 10, 10);
-                
-                // Hair - long flowing
-                this.ctx.fillStyle = '#4a235a';
-                this.ctx.fillRect(x - 14, y - 36, 28, 8);
-                this.ctx.fillRect(x - 16, y - 28, 4, 24);
-                this.ctx.fillRect(x + 12, y - 28, 4, 24);
-                this.ctx.fillStyle = '#6c3483';
-                this.ctx.fillRect(x - 12, y - 36, 8, 4);
-                
-                // Eyes
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 8, y - 24, 4, 4);
-                this.ctx.fillRect(x + 4, y - 24, 4, 4);
-                this.ctx.fillStyle = '#9b59b6';
-                this.ctx.fillRect(x - 7, y - 23, 2, 2);
-                this.ctx.fillRect(x + 5, y - 23, 2, 2);
-                
-                // Smile
-                this.ctx.fillStyle = '#000';
-                this.ctx.fillRect(x - 4, y - 16, 2, 2);
-                this.ctx.fillRect(x - 2, y - 15, 4, 2);
-                this.ctx.fillRect(x + 2, y - 16, 2, 2);
-            } else if (character.name === 'Blayde') {
-                // Blayde - warrior with sword
-                // Similar to Leo but with red/orange colors
-                this.ctx.fillStyle = '#c0392b';
-                this.ctx.fillRect(x - 16, y - 8, 32, 18);
-                this.ctx.fillStyle = '#e74c3c';
-                this.ctx.fillRect(x - 16, y - 8, 10, 6);
-                
-                // Big sword
-                this.ctx.fillStyle = '#c0c0c0';
-                this.ctx.fillRect(x + 16, y - 16, 6, 28);
-                this.ctx.fillStyle = '#8b0000';
-                this.ctx.fillRect(x + 15, y + 10, 8, 6);
-                
-                // Similar body structure to Leo
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ff4500';
-                this.ctx.fillRect(x - 14, y - 40, 28, 8);
-            } else if (character.name === 'Serapha') {
-                // Serapha - healer with white robes
-                this.ctx.fillStyle = '#ecf0f1';
-                this.ctx.fillRect(x - 14, y - 8, 28, 24);
-                this.ctx.fillStyle = '#fff';
-                this.ctx.fillRect(x - 14, y - 8, 10, 16);
-                
-                // Pink accents
-                this.ctx.fillStyle = '#ff69b4';
-                this.ctx.fillRect(x - 14, y + 4, 28, 4);
-                
-                // Head with pink hair
-                this.ctx.fillStyle = '#ffdbac';
-                this.ctx.fillRect(x - 12, y - 32, 24, 22);
-                this.ctx.fillStyle = '#ff1493';
-                this.ctx.fillRect(x - 14, y - 38, 28, 8);
+            // Get character sprite sheet
+            const sheetMap = {
+                'Leo': 'sheet_leo',
+                'Eliza': 'sheet_eliza',
+                'Blayde': 'sheet_blayde',
+                'Serapha': 'sheet_serapha'
+            };
+
+            const sheetKey = sheetMap[character.name];
+            if (sheetKey) {
+                sprite = this.assetLoader.getAsset(sheetKey);
+            }
+
+            if (!sprite) {
+                // Fallback: colored square based on character
+                const colorMap = {
+                    'Leo': '#0000FF',
+                    'Eliza': '#800080',
+                    'Blayde': '#FF0000',
+                    'Serapha': '#FFC0CB'
+                };
+                this.ctx.fillStyle = colorMap[character.name] || '#888';
+                this.ctx.fillRect(x - 16, y - 32, 32, 64);
+            } else {
+                // Draw character sprite (use first frame, down direction)
+                // For battle, we use the idle frame (frame 0, down direction)
+                const sx = 0;  // First frame
+                const sy = 0;  // Down direction
+
+                this.ctx.drawImage(
+                    sprite,
+                    sx, sy, spriteWidth, spriteHeight,
+                    x - spriteWidth / 2, y - spriteHeight + 10,
+                    spriteWidth, spriteHeight
+                );
             }
         } else {
-            // Enhanced enemy sprite - Shadow Beast
-            // Body - dark purple with detail
-            this.ctx.fillStyle = '#4a0e4e';
-            this.ctx.fillRect(x - 24, y - 16, 48, 40);
-            this.ctx.fillStyle = '#5b0f6b';
-            this.ctx.fillRect(x - 20, y - 12, 40, 32);
-            this.ctx.fillStyle = '#350a3a';
-            this.ctx.fillRect(x + 8, y - 12, 16, 32);
-            
-            // Horns - detailed
-            this.ctx.fillStyle = '#ff4500';
-            this.ctx.fillRect(x - 28, y - 28, 8, 4);
-            this.ctx.fillRect(x - 32, y - 36, 6, 8);
-            this.ctx.fillRect(x + 20, y - 28, 8, 4);
-            this.ctx.fillRect(x + 26, y - 36, 6, 8);
-            // Horn highlights
-            this.ctx.fillStyle = '#ff6347';
-            this.ctx.fillRect(x - 30, y - 34, 2, 4);
-            this.ctx.fillRect(x + 28, y - 34, 2, 4);
-            
-            // Glowing eyes - more dramatic
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.fillRect(x - 18, y - 8, 8, 8);
-            this.ctx.fillRect(x + 10, y - 8, 8, 8);
-            // Eye glow
-            this.ctx.fillStyle = '#ff6666';
-            this.ctx.fillRect(x - 16, y - 6, 4, 4);
-            this.ctx.fillRect(x + 12, y - 6, 4, 4);
-            
-            // Teeth - sharp and menacing
-            this.ctx.fillStyle = '#fff';
-            for (let i = 0; i < 7; i++) {
-                this.ctx.fillRect(x - 22 + i * 6, y + 10, 4, 10);
-                // Add detail to teeth
-                this.ctx.fillStyle = '#f0f0f0';
-                this.ctx.fillRect(x - 21 + i * 6, y + 11, 2, 8);
-                this.ctx.fillStyle = '#fff';
-            }
-            
-            // Claws
-            this.ctx.fillStyle = '#fff';
-            this.ctx.fillRect(x - 28, y + 8, 4, 12);
-            this.ctx.fillRect(x + 24, y + 8, 4, 12);
-            this.ctx.fillStyle = '#f0f0f0';
-            this.ctx.fillRect(x - 27, y + 9, 2, 10);
-            this.ctx.fillRect(x + 25, y + 9, 2, 10);
-            
-            // Body texture/scales
-            this.ctx.fillStyle = '#2a0a2e';
-            for (let i = 0; i < 4; i++) {
-                for (let j = 0; j < 3; j++) {
-                    this.ctx.fillRect(x - 16 + i * 10, y - 8 + j * 10, 6, 6);
-                }
+            // Enemy sprite
+            sprite = this.assetLoader.getAsset('enemy_shadow_beast');
+            spriteWidth = 64;
+            spriteHeight = 64;
+
+            if (!sprite) {
+                // Fallback: purple square
+                this.ctx.fillStyle = '#4B0082';
+                this.ctx.fillRect(x - 32, y - 32, 64, 64);
+            } else {
+                this.ctx.drawImage(
+                    sprite,
+                    0, 0, spriteWidth, spriteHeight,
+                    x - spriteWidth / 2, y - spriteHeight / 2,
+                    spriteWidth, spriteHeight
+                );
             }
         }
-        
-        // HP bar with more detail
+
+        // HP bar (kept from original - this is UI, not character rendering)
         const barWidth = 70;
         const hpPercent = character.stats.hp / character.stats.maxHp;
-        
+
         // Bar border
         this.ctx.fillStyle = '#000';
         this.ctx.fillRect(x - barWidth / 2 - 2, y - 50, barWidth + 4, 10);
-        
+
         // Bar background
         this.ctx.fillStyle = '#333';
         this.ctx.fillRect(x - barWidth / 2, y - 48, barWidth, 6);
-        
+
         // HP fill with gradient effect
         const hpColor = hpPercent > 0.5 ? '#0f0' : hpPercent > 0.25 ? '#ff0' : '#f00';
         const hpDark = hpPercent > 0.5 ? '#0a0' : hpPercent > 0.25 ? '#cc0' : '#a00';
-        
+
         for (let i = 0; i < barWidth * hpPercent; i += 2) {
             this.ctx.fillStyle = i % 4 === 0 ? hpColor : hpDark;
             this.ctx.fillRect(x - barWidth / 2 + i, y - 48, 2, 6);
         }
-        
+
         // Name with shadow
         this.ctx.font = 'bold 14px Courier New';
         this.ctx.fillStyle = '#000';
@@ -1825,16 +2113,26 @@ class Game {
             actions.splice(1, 0, 'Override');
         }
         
-        mainActions.innerHTML = actions.map(action => 
+        mainActions.innerHTML = actions.map(action =>
             `<div class="menu-option" data-action="${action.toLowerCase()}">${action}</div>`
         ).join('');
-        
-        // Add click handlers
-        mainActions.querySelectorAll('.menu-option').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.action) {
                 const action = option.dataset.action;
                 this.handleBattleMenuSelection(action, character);
-            });
+            }
+        };
+
+        mainActions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: mainActions,
+            event: 'click',
+            handler: handler
         });
     }
     
@@ -1882,21 +2180,32 @@ class Game {
         if (availableAbilities.length === 0) {
             abilityOptions.innerHTML = '<div class="menu-option disabled">No abilities available</div>';
         }
-        
-        abilityOptions.querySelectorAll('.menu-option:not(.disabled)').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option:not(.disabled)');
+            if (option && option.dataset.ability) {
                 const abilityName = option.dataset.ability;
                 const ability = ABILITIES[abilityName];
-                
+
                 this.selectTarget(character, ability.target, (target) => {
-                    this.battle.executePlayerAction({ 
-                        action: 'ability', 
-                        ability: abilityName, 
-                        target 
+                    this.battle.executePlayerAction({
+                        action: 'ability',
+                        ability: abilityName,
+                        target
                     });
                     abilityMenu.classList.add('hidden');
                 });
-            });
+            }
+        };
+
+        abilityOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: abilityOptions,
+            event: 'click',
+            handler: handler
         });
     }
     
@@ -1909,19 +2218,30 @@ class Game {
         
         // Show AI-controlled allies
         const aiAllies = this.party.filter(m => m.controlType === 'AI' && m.stats.hp > 0);
-        targetOptions.innerHTML = aiAllies.map(ally => 
+        targetOptions.innerHTML = aiAllies.map(ally =>
             `<div class="menu-option" data-target="${ally.name}">${ally.name}</div>`
         ).join('');
-        
-        targetOptions.querySelectorAll('.menu-option').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.target) {
                 const targetName = option.dataset.target;
                 const target = this.party.find(m => m.name === targetName);
-                
+
                 // Now select action for the overridden character
                 this.selectOverrideAction(character, target);
                 targetMenu.classList.add('hidden');
-            });
+            }
+        };
+
+        targetOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: targetOptions,
+            event: 'click',
+            handler: handler
         });
     }
     
@@ -1972,62 +2292,106 @@ class Game {
             targetMenu.classList.add('hidden');
             return;
         }
-        
-        targetOptions.innerHTML = targets.map(target => 
+
+        targetOptions.innerHTML = targets.map(target =>
             `<div class="menu-option" data-target="${target.name}">${target.name}</div>`
         ).join('');
-        
-        targetOptions.querySelectorAll('.menu-option').forEach(option => {
-            option.addEventListener('click', () => {
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.target) {
                 const targetName = option.dataset.target;
                 const target = targets.find(t => t.name === targetName);
                 targetMenu.classList.add('hidden');
                 callback(target);
-            });
+            }
+        };
+
+        targetOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: targetOptions,
+            event: 'click',
+            handler: handler
         });
     }
     
     endBattle(result) {
+        // Clean up all battle menu event listeners to prevent memory leaks
+        this.cleanupBattleMenus();
+
         this.state = 'OVERWORLD';
         document.getElementById('battle-ui').classList.add('hidden');
         this.battle = null;
-        
+
         if (result === 'victory') {
             this.showMessage('Victory! You gained experience!');
+            // Auto-save after battle victory
+            setTimeout(() => {
+                this.saveGame();
+            }, 500);
         } else {
             this.showMessage('Defeated... Game Over. Press F5 to restart.');
         }
     }
-    
-    openMenu() {
-        this.state = 'MENU';
-        const menuElement = document.getElementById('main-menu');
-        menuElement.classList.remove('hidden');
-        
-        // Setup menu options
-        const menuOptions = menuElement.querySelectorAll('.menu-option');
-        menuOptions.forEach(option => {
-            option.onclick = () => this.handleMenuSelection(option.dataset.menu);
+
+    cleanupBattleMenus() {
+        // Remove all tracked event listeners to prevent memory leaks
+        this.battleMenuCleanup.forEach(({ element, event, handler }) => {
+            element.removeEventListener(event, handler);
         });
-        
-        // Show default view (party status)
-        this.showMenuParty();
+
+        // Clear the cleanup array
+        this.battleMenuCleanup = [];
+
+        console.log('[Game] Battle menu event listeners cleaned up');
     }
     
+    openMenu() {
+        try {
+            this.state = 'MENU';
+            const menuElement = document.getElementById('main-menu');
+            menuElement.classList.remove('hidden');
+
+            // Setup menu options
+            const menuOptions = menuElement.querySelectorAll('.menu-option');
+            menuOptions.forEach(option => {
+                option.onclick = () => this.handleMenuSelection(option.dataset.menu);
+            });
+
+            // Show default view (party status)
+            this.showMenuParty();
+        } catch (error) {
+            console.error('[Menu] Error opening menu:', error);
+            this.showMessage('Error opening menu! Please try again.');
+        }
+    }
+
     handleMenuSelection(menuType) {
-        switch (menuType) {
-            case 'party':
-                this.showMenuParty();
-                break;
-            case 'equipment':
-                this.showMenuEquipment();
-                break;
-            case 'inventory':
-                this.showMenuInventory();
-                break;
-            case 'close':
-                this.closeMenu();
-                break;
+        try {
+            switch (menuType) {
+                case 'party':
+                    this.showMenuParty();
+                    break;
+                case 'equipment':
+                    this.showMenuEquipment();
+                    break;
+                case 'inventory':
+                    this.showMenuInventory();
+                    break;
+                case 'save':
+                    this.showMenuSave();
+                    break;
+                case 'close':
+                    this.closeMenu();
+                    break;
+            }
+        } catch (error) {
+            console.error('[Menu] Error handling menu selection:', error);
+            this.showMessage('Menu error! Closing menu.');
+            this.closeMenu();
         }
     }
     
@@ -2166,7 +2530,96 @@ class Game {
         const seconds = totalSeconds % 60;
         return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
-    
+
+    showMenuSave() {
+        const details = document.getElementById('menu-details');
+        let html = '<h3 style="color: #ffd700; margin-bottom: 15px;">Save Data</h3>';
+
+        // Check if save data exists
+        const hasSave = this.saveSystem.hasSaveData();
+        const saveInfo = this.saveSystem.getSaveInfo();
+
+        if (hasSave && saveInfo) {
+            const date = new Date(saveInfo.timestamp);
+            const hours = Math.floor(saveInfo.playTime / 3600);
+            const minutes = Math.floor((saveInfo.playTime % 3600) / 60);
+
+            html += `
+                <div style="background: rgba(0,0,50,0.5); border: 2px solid #4169e1; border-radius: 4px; padding: 12px; margin-bottom: 15px;">
+                    <div style="color: #ffd700; font-weight: bold; margin-bottom: 8px;">Current Save File</div>
+                    <div style="font-size: 14px; color: #ccc;">
+                        <div>Story Phase: ${saveInfo.storyPhase}</div>
+                        <div>Party Size: ${saveInfo.partySize}</div>
+                        <div>Play Time: ${hours}h ${minutes}m</div>
+                        <div>Saved: ${date.toLocaleString()}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div style="background: rgba(50,0,0,0.5); border: 2px solid #8b0000; border-radius: 4px; padding: 12px; margin-bottom: 15px;">
+                    <div style="color: #ff6666; font-style: italic;">No save data found</div>
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="menu-option" onclick="game.performSave()" style="margin-bottom: 8px;">
+                Save Game
+            </div>
+        `;
+
+        if (hasSave) {
+            html += `
+                <div class="menu-option" onclick="game.performLoad()" style="margin-bottom: 8px;">
+                    Load Game
+                </div>
+                <div class="menu-option" onclick="game.performDeleteSave()" style="margin-bottom: 8px; border-color: #8b0000;">
+                    Delete Save Data
+                </div>
+            `;
+        }
+
+        details.innerHTML = html;
+    }
+
+    performSave() {
+        const success = this.saveGame();
+        if (success) {
+            this.showMessage('Game saved successfully!');
+            // Refresh the save menu to show updated info
+            this.showMenuSave();
+        } else {
+            this.showMessage('Failed to save game!');
+        }
+    }
+
+    performLoad() {
+        const confirmed = confirm('Load saved game? Any unsaved progress will be lost.');
+        if (confirmed) {
+            const success = this.loadGame();
+            if (success) {
+                this.closeMenu();
+                this.showMessage('Game loaded successfully!');
+            } else {
+                this.showMessage('Failed to load game!');
+            }
+        }
+    }
+
+    performDeleteSave() {
+        const confirmed = confirm('Delete save data? This cannot be undone!');
+        if (confirmed) {
+            const success = this.saveSystem.deleteSave();
+            if (success) {
+                this.showMessage('Save data deleted.');
+                this.showMenuSave(); // Refresh menu
+            } else {
+                this.showMessage('Failed to delete save data!');
+            }
+        }
+    }
+
     closeMenu() {
         this.state = 'OVERWORLD';
         document.getElementById('main-menu').classList.add('hidden');
@@ -2175,13 +2628,167 @@ class Game {
     showMessage(text) {
         const dialogueBox = document.getElementById('dialogue-box');
         const dialogueText = document.getElementById('dialogue-text');
-        
+
         dialogueText.textContent = text;
         dialogueBox.classList.remove('hidden');
-        
+
         setTimeout(() => {
             dialogueBox.classList.add('hidden');
         }, 3000);
+    }
+
+    // ===== ERROR HANDLING SYSTEM =====
+
+    handleCriticalError(error, context) {
+        // Log error details
+        this.logError(error, context);
+
+        // Show user-friendly error message
+        this.showErrorUI(error, context);
+
+        // Attempt recovery if possible
+        this.attemptErrorRecovery(context);
+    }
+
+    logError(error, context) {
+        // Initialize error log if not exists
+        if (!this.errorLog) {
+            this.errorLog = [];
+        }
+
+        const errorEntry = {
+            timestamp: new Date().toISOString(),
+            context: context,
+            message: error.message,
+            stack: error.stack,
+            state: this.state,
+            party: this.party ? this.party.map(m => ({ name: m.name, hp: m.stats.hp })) : null
+        };
+
+        this.errorLog.push(errorEntry);
+
+        // Keep only last 50 errors
+        if (this.errorLog.length > 50) {
+            this.errorLog.shift();
+        }
+
+        // Log to console with formatting
+        console.group(`[ERROR] ${context}`);
+        console.error('Message:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('Game State:', this.state);
+        console.groupEnd();
+
+        // Store in localStorage for debugging
+        try {
+            localStorage.setItem('genericJRPG_errorLog', JSON.stringify(this.errorLog));
+        } catch (e) {
+            console.warn('Could not save error log to localStorage');
+        }
+    }
+
+    showErrorUI(error, context) {
+        // Create error overlay if it doesn't exist
+        let errorOverlay = document.getElementById('error-overlay');
+        if (!errorOverlay) {
+            errorOverlay = document.createElement('div');
+            errorOverlay.id = 'error-overlay';
+            errorOverlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                font-family: 'Courier New', monospace;
+            `;
+            document.body.appendChild(errorOverlay);
+        }
+
+        errorOverlay.innerHTML = `
+            <div style="background: #300; border: 3px solid #f00; border-radius: 8px; padding: 30px; max-width: 600px; color: #fff;">
+                <h2 style="color: #f00; margin-top: 0;">⚠️ Critical Error</h2>
+                <p style="color: #ff6666;"><strong>Context:</strong> ${context}</p>
+                <p style="color: #ff9999;"><strong>Message:</strong> ${error.message}</p>
+                <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.5); border: 1px solid #666; border-radius: 4px;">
+                    <p style="margin: 0 0 10px 0; color: #ccc;"><strong>Recovery Options:</strong></p>
+                    <button onclick="location.reload()" style="
+                        background: #c00;
+                        color: #fff;
+                        border: none;
+                        padding: 10px 20px;
+                        margin-right: 10px;
+                        cursor: pointer;
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        border-radius: 4px;
+                    ">Reload Game</button>
+                    <button onclick="document.getElementById('error-overlay').style.display='none'" style="
+                        background: #666;
+                        color: #fff;
+                        border: none;
+                        padding: 10px 20px;
+                        cursor: pointer;
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        border-radius: 4px;
+                    ">Dismiss</button>
+                </div>
+                <p style="font-size: 12px; color: #999; margin-top: 15px;">
+                    Error details have been logged to console (F12).
+                </p>
+            </div>
+        `;
+
+        errorOverlay.style.display = 'flex';
+    }
+
+    attemptErrorRecovery(context) {
+        // Attempt context-specific recovery
+        console.log(`[Recovery] Attempting recovery for: ${context}`);
+
+        if (context === 'Game Loop') {
+            // Game loop errors are non-fatal, continue running
+            console.log('[Recovery] Game loop will continue');
+        } else if (context.includes('Battle')) {
+            // Battle errors - try to end battle safely
+            try {
+                if (this.battle) {
+                    this.battle = null;
+                    this.state = 'OVERWORLD';
+                    document.getElementById('battle-ui').classList.add('hidden');
+                    console.log('[Recovery] Battle safely terminated');
+                }
+            } catch (e) {
+                console.error('[Recovery] Could not recover from battle error:', e);
+            }
+        } else if (context.includes('Menu')) {
+            // Menu errors - close menu and return to overworld
+            try {
+                this.state = 'OVERWORLD';
+                document.getElementById('main-menu').classList.add('hidden');
+                console.log('[Recovery] Menu safely closed');
+            } catch (e) {
+                console.error('[Recovery] Could not recover from menu error:', e);
+            }
+        }
+    }
+
+    getErrorLog() {
+        return this.errorLog || [];
+    }
+
+    clearErrorLog() {
+        this.errorLog = [];
+        try {
+            localStorage.removeItem('genericJRPG_errorLog');
+        } catch (e) {
+            console.warn('Could not clear error log from localStorage');
+        }
     }
 }
 

@@ -763,7 +763,18 @@ class Inventory {
         }
         return false;
     }
-    
+
+    removeItem(itemId, count = 1) {
+        if (this.items[itemId] && this.items[itemId].count >= count) {
+            this.items[itemId].count -= count;
+            if (this.items[itemId].count === 0) {
+                delete this.items[itemId];
+            }
+            return true;
+        }
+        return false;
+    }
+
     addItem(itemId, count = 1) {
         const itemData = ITEM_DATA[itemId];
         if (itemData) {
@@ -2152,10 +2163,7 @@ class Game {
         } else if (action === 'override') {
             this.showOverrideMenu(character);
         } else if (action === 'item') {
-            alert('Item menu not yet implemented!');
-            // Default to defend to avoid soft-locking the game
-            this.battle.executePlayerAction({ action: 'defend' });
-            document.getElementById('action-menu').classList.add('hidden');
+            this.showItemMenu(character);
         }
     }
     
@@ -2208,7 +2216,166 @@ class Game {
             handler: handler
         });
     }
-    
+
+    showItemMenu(character) {
+        document.getElementById('action-menu').classList.add('hidden');
+        const itemMenu = document.getElementById('item-menu');
+        const itemOptions = document.getElementById('item-options');
+
+        itemMenu.classList.remove('hidden');
+
+        // Get consumable items from inventory
+        const items = [];
+        for (const [itemId, itemData] of Object.entries(this.inventory.items)) {
+            if (itemData.count > 0) {
+                const itemInfo = ITEM_DATA[itemId];
+                items.push({
+                    id: itemId,
+                    ...itemInfo,
+                    count: itemData.count
+                });
+            }
+        }
+
+        if (items.length === 0) {
+            itemOptions.innerHTML = '<div class="menu-option disabled">No items available</div>';
+        } else {
+            itemOptions.innerHTML = items.map(item => `
+                <div class="menu-option" data-item="${item.id}">
+                    ${item.name}
+                    <span class="item-count">x${item.count}</span>
+                </div>
+            `).join('');
+        }
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option:not(.disabled)');
+            if (option && option.dataset.item) {
+                const itemId = option.dataset.item;
+                const itemInfo = ITEM_DATA[itemId];
+
+                // Determine target type based on item effect
+                let targetType = 'ally'; // Most items target allies
+                if (itemInfo.effect === 'revive') {
+                    // Revive items need special handling (target dead allies)
+                    this.selectDeadAlly(character, (target) => {
+                        this.useItem(itemId, target);
+                        itemMenu.classList.add('hidden');
+                    });
+                } else {
+                    this.selectTarget(character, targetType, (target) => {
+                        this.useItem(itemId, target);
+                        itemMenu.classList.add('hidden');
+                    });
+                }
+            }
+        };
+
+        itemOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: itemOptions,
+            event: 'click',
+            handler: handler
+        });
+    }
+
+    useItem(itemId, target) {
+        const itemInfo = ITEM_DATA[itemId];
+
+        // Check if we have the item
+        if (!this.inventory.items[itemId] || this.inventory.items[itemId].count <= 0) {
+            this.battle.addLog('No items available!');
+            return;
+        }
+
+        // Remove item from inventory
+        this.inventory.removeItem(itemId, 1);
+
+        // Apply item effect
+        let message = '';
+        switch (itemInfo.effect) {
+            case 'heal':
+                const healAmount = Math.min(itemInfo.value, target.stats.maxHp - target.stats.hp);
+                target.stats.hp += healAmount;
+                message = `${target.name} recovered ${healAmount} HP!`;
+                break;
+
+            case 'restoreMP':
+                const mpAmount = Math.min(itemInfo.value, target.stats.maxMp - target.stats.mp);
+                target.stats.mp += mpAmount;
+                message = `${target.name} recovered ${mpAmount} MP!`;
+                break;
+
+            case 'curePoison':
+                if (target.hasStatus('POISON')) {
+                    target.removeStatus('POISON');
+                    message = `${target.name} was cured of POISON!`;
+                } else {
+                    message = `${target.name} was not poisoned.`;
+                }
+                break;
+
+            case 'revive':
+                if (target.stats.hp <= 0) {
+                    target.stats.hp = 1;
+                    message = `${target.name} was revived!`;
+                } else {
+                    message = `${target.name} is not knocked out.`;
+                }
+                break;
+
+            default:
+                message = `Used ${itemInfo.name} on ${target.name}!`;
+        }
+
+        this.battle.addLog(message);
+
+        // Execute action through battle system
+        this.battle.executePlayerAction({ action: 'item', itemId: itemId, target: target });
+    }
+
+    selectDeadAlly(character, callback) {
+        const targetMenu = document.getElementById('target-menu');
+        const targetOptions = document.getElementById('target-options');
+
+        document.getElementById('item-menu').classList.add('hidden');
+        targetMenu.classList.remove('hidden');
+
+        // Get dead party members
+        const deadAllies = this.party.filter(m => m.stats.hp <= 0);
+
+        if (deadAllies.length === 0) {
+            targetOptions.innerHTML = '<div class="menu-option disabled">No knocked out allies</div>';
+        } else {
+            targetOptions.innerHTML = deadAllies.map(target =>
+                `<div class="menu-option" data-target="${target.name}">${target.name}</div>`
+            ).join('');
+        }
+
+        // Use event delegation to prevent memory leaks
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option:not(.disabled)');
+            if (option && option.dataset.target) {
+                const targetName = option.dataset.target;
+                const target = this.party.find(t => t.name === targetName);
+                targetMenu.classList.add('hidden');
+                callback(target);
+            }
+        };
+
+        targetOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: targetOptions,
+            event: 'click',
+            handler: handler
+        });
+    }
+
     showOverrideMenu(character) {
         document.getElementById('action-menu').classList.add('hidden');
         const targetMenu = document.getElementById('target-menu');

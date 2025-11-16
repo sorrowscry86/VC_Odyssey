@@ -944,59 +944,71 @@ class BattleSystem {
         this.state = 'SELECTING_ACTION';
         this.game.showBattleMenu(this.currentCharacter);
     }
-    
-    executeAITurn() {
-        if (this.isExecuting) return;
-        this.isExecuting = true;
 
-        this.waitingForPlayer = false;
-        const allies = this.party;
-        const enemies = this.enemies;
-        
-        let action;
-        
-        // Check if there's an override action
-        if (this.currentCharacter.overrideAction) {
-            action = this.currentCharacter.overrideAction;
-            this.currentCharacter.overrideAction = null;
-            this.addLog(`[OVERRIDE] ${this.currentCharacter.name}'s action is controlled!`);
-            
-            // Check Headstrong passive (Blayde only)
-            if (this.currentCharacter.name === 'Blayde' && 
-                this.currentCharacter.abilities.includes('HEADSTRONG') && 
-                ABILITIES.HEADSTRONG.effect()) {
-                this.addLog(`${this.currentCharacter.name} ignores the override! (Headstrong)`);
-                action = null;
-            }
-        }
-        
-        // If no override or override was ignored, use AI
-        if (!action) {
-            if (this.currentCharacter.name === 'Blayde') {
-                action = BlaydeAI.decideAction(this.currentCharacter, allies, enemies, this.game);
-            } else if (this.currentCharacter.name === 'Serapha') {
-                action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
-            } else {
-                // Enemy AI - simple attack
-                const livingAllies = allies.filter(a => a.stats.hp > 0);
-                if (livingAllies.length > 0) {
-                    action = {
-                        action: 'attack',
-                        target: livingAllies[Math.floor(Math.random() * livingAllies.length)]
-                    };
+    // Promise-based delay helper to replace setTimeout
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async executeAITurn() {
+        try {
+            if (this.isExecuting) return;
+            this.isExecuting = true;
+
+            this.waitingForPlayer = false;
+            const allies = this.party;
+            const enemies = this.enemies;
+
+            let action;
+
+            // Check if there's an override action
+            if (this.currentCharacter.overrideAction) {
+                action = this.currentCharacter.overrideAction;
+                this.currentCharacter.overrideAction = null;
+                this.addLog(`[OVERRIDE] ${this.currentCharacter.name}'s action is controlled!`);
+
+                // Check Headstrong passive (Blayde only)
+                if (this.currentCharacter.name === 'Blayde' &&
+                    this.currentCharacter.abilities.includes('HEADSTRONG') &&
+                    ABILITIES.HEADSTRONG.effect()) {
+                    this.addLog(`${this.currentCharacter.name} ignores the override! (Headstrong)`);
+                    action = null;
                 }
             }
-        }
-        
-        this.executeAction(action);
-        
-        setTimeout(() => {
+
+            // If no override or override was ignored, use AI
+            if (!action) {
+                if (this.currentCharacter.name === 'Blayde') {
+                    action = BlaydeAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+                } else if (this.currentCharacter.name === 'Serapha') {
+                    action = SeraphaAI.decideAction(this.currentCharacter, allies, enemies, this.game);
+                } else {
+                    // Enemy AI - simple attack
+                    const livingAllies = allies.filter(a => a.stats.hp > 0);
+                    if (livingAllies.length > 0) {
+                        action = {
+                            action: 'attack',
+                            target: livingAllies[Math.floor(Math.random() * livingAllies.length)]
+                        };
+                    }
+                }
+            }
+
+            this.executeAction(action);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(1500);
+
             this.isExecuting = false;
             this.nextTurn();
-        }, 1500);
+        } catch (error) {
+            console.error('[Battle] Error in executeAITurn:', error);
+            this.addLog('ERROR: AI turn failed!');
+            this.isExecuting = false;
+        }
     }
-    
-    executePlayerAction(action) {
+
+    async executePlayerAction(action) {
         try {
             if (this.isExecuting) return;
             this.isExecuting = true;
@@ -1004,16 +1016,11 @@ class BattleSystem {
             this.waitingForPlayer = false;
             this.executeAction(action);
 
-            setTimeout(() => {
-                try {
-                    this.isExecuting = false;
-                    this.nextTurn();
-                } catch (error) {
-                    console.error('[Battle] Error in nextTurn:', error);
-                    this.addLog('ERROR: Battle flow interrupted!');
-                    this.isExecuting = false;
-                }
-            }, 1500);
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(1500);
+
+            this.isExecuting = false;
+            this.nextTurn();
         } catch (error) {
             console.error('[Battle] Error executing player action:', error);
             this.addLog('ERROR: Action failed!');
@@ -1066,12 +1073,12 @@ class BattleSystem {
         }
     }
     
-    endBattle(result) {
+    async endBattle(result) {
         this.state = 'BATTLE_END';
-        
+
         if (result === 'victory') {
             this.addLog('Victory!');
-            
+
             // Award EXP
             const totalExp = this.enemies.reduce((sum, enemy) => sum + (enemy.expReward || 50), 0);
             this.party.forEach(member => {
@@ -1080,7 +1087,7 @@ class BattleSystem {
                     levelUpMessages.forEach(msg => this.addLog(msg));
                 }
             });
-            
+
             // Clear non-persistent status effects
             this.party.forEach(member => {
                 for (const status in member.statusEffects) {
@@ -1089,15 +1096,16 @@ class BattleSystem {
                     }
                 }
             });
-            
-            setTimeout(() => {
-                this.game.endBattle('victory');
-            }, 3000);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(3000);
+            this.game.endBattle('victory');
         } else {
             this.addLog('Defeat...');
-            setTimeout(() => {
-                this.game.endBattle('defeat');
-            }, 3000);
+
+            // Use Promise-based delay instead of setTimeout
+            await this.delay(3000);
+            this.game.endBattle('defeat');
         }
     }
 }

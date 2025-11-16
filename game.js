@@ -861,21 +861,54 @@ class BattleSystem {
             this.endBattle('defeat');
             return;
         }
-        
+
+        // Safety counter to prevent infinite loops
+        const maxIterations = this.turnOrder.length * 2;
+        let iterationCount = 0;
+        let foundActiveCharacter = false;
+
         // Move to next character
         do {
+            iterationCount++;
+
+            // INFINITE LOOP PROTECTION
+            if (iterationCount > maxIterations) {
+                console.error('[Battle] Infinite loop detected in nextTurn()!');
+                this.addLog('ERROR: No active characters found!');
+
+                // Emergency recovery: Wake up first sleeping character or end battle
+                const sleepingChar = this.turnOrder.find(c =>
+                    c.stats.hp > 0 && c.hasStatus('SLEEP')
+                );
+
+                if (sleepingChar) {
+                    sleepingChar.removeStatus('SLEEP');
+                    this.addLog(`${sleepingChar.name} forcefully awakens!`);
+                    this.currentCharacter = sleepingChar;
+                    foundActiveCharacter = true;
+                    console.log('[Battle] Emergency recovery: woke up sleeping character');
+                    break;
+                } else {
+                    // No recovery possible - force end battle
+                    console.error('[Battle] No recovery possible, ending battle');
+                    this.addLog('Battle ended due to system error!');
+                    this.endBattle('defeat');
+                    return;
+                }
+            }
+
             this.currentTurnIndex = (this.currentTurnIndex + 1) % this.turnOrder.length;
             this.currentCharacter = this.turnOrder[this.currentTurnIndex];
-            
+
             // Skip dead characters
             if (this.currentCharacter.stats.hp <= 0) {
                 continue;
             }
-            
+
             // Process status effects at start of turn
             const statusMessages = this.currentCharacter.updateStatusEffects();
             statusMessages.forEach(msg => this.addLog(msg));
-            
+
             // Check if character can act
             if (!this.currentCharacter.canAct()) {
                 if (this.currentCharacter.hasStatus('SLEEP')) {
@@ -885,13 +918,19 @@ class BattleSystem {
                 }
                 continue;
             }
-            
+
+            foundActiveCharacter = true;
             break;
         } while (true);
-        
+
+        // Log if we had to iterate multiple times (potential issue indicator)
+        if (iterationCount > this.turnOrder.length) {
+            console.warn(`[Battle] nextTurn() required ${iterationCount} iterations (turnOrder size: ${this.turnOrder.length})`);
+        }
+
         // Reset defending state
         this.currentCharacter.isDefending = false;
-        
+
         // Determine action based on control type
         if (this.currentCharacter.controlType === 'PLAYER') {
             this.waitForPlayerInput();

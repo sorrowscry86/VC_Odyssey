@@ -958,47 +958,65 @@ class BattleSystem {
     }
     
     executePlayerAction(action) {
-        if (this.isExecuting) return;
-        this.isExecuting = true;
+        try {
+            if (this.isExecuting) return;
+            this.isExecuting = true;
 
-        this.waitingForPlayer = false;
-        this.executeAction(action);
-        
-        setTimeout(() => {
+            this.waitingForPlayer = false;
+            this.executeAction(action);
+
+            setTimeout(() => {
+                try {
+                    this.isExecuting = false;
+                    this.nextTurn();
+                } catch (error) {
+                    console.error('[Battle] Error in nextTurn:', error);
+                    this.addLog('ERROR: Battle flow interrupted!');
+                    this.isExecuting = false;
+                }
+            }, 1500);
+        } catch (error) {
+            console.error('[Battle] Error executing player action:', error);
+            this.addLog('ERROR: Action failed!');
             this.isExecuting = false;
-            this.nextTurn();
-        }, 1500);
+        }
     }
-    
+
     executeAction(action) {
-        const actor = this.currentCharacter;
-        
-        if (action.action === 'attack') {
-            const damage = Math.floor(actor.stats.STR * 0.8 + Math.random() * 10);
-            const actualDamage = action.target.takeDamage(damage);
-            this.addLog(`${actor.name} attacks ${action.target.name} for ${actualDamage} damage!`);
-            
-            // Wake up sleeping targets
-            if (action.target.hasStatus('SLEEP')) {
-                action.target.removeStatus('SLEEP');
-                this.addLog(`${action.target.name} wakes up!`);
+        try {
+            const actor = this.currentCharacter;
+
+            if (action.action === 'attack') {
+                const damage = Math.floor(actor.stats.STR * 0.8 + Math.random() * 10);
+                const actualDamage = action.target.takeDamage(damage);
+                this.addLog(`${actor.name} attacks ${action.target.name} for ${actualDamage} damage!`);
+
+                // Wake up sleeping targets
+                if (action.target.hasStatus('SLEEP')) {
+                    action.target.removeStatus('SLEEP');
+                    this.addLog(`${action.target.name} wakes up!`);
+                }
+            } else if (action.action === 'defend') {
+                actor.isDefending = true;
+                this.addLog(`${actor.name} defends!`);
+            } else if (action.action === 'ability') {
+                const ability = ABILITIES[action.ability];
+                if (ability && actor.stats.mp >= ability.cost) {
+                    actor.stats.mp -= ability.cost;
+                    const message = ability.effect(actor, action.target, this.game);
+                    this.addLog(message);
+                }
+            } else if (action.action === 'pray') {
+                this.addLog(`${actor.name} prays... (nothing happens)`);
+            } else if (action.action === 'override') {
+                // Set override for target
+                action.target.overrideAction = action.overrideAction;
+                this.addLog(`${actor.name} will control ${action.target.name}'s next action!`);
             }
-        } else if (action.action === 'defend') {
-            actor.isDefending = true;
-            this.addLog(`${actor.name} defends!`);
-        } else if (action.action === 'ability') {
-            const ability = ABILITIES[action.ability];
-            if (ability && actor.stats.mp >= ability.cost) {
-                actor.stats.mp -= ability.cost;
-                const message = ability.effect(actor, action.target, this.game);
-                this.addLog(message);
-            }
-        } else if (action.action === 'pray') {
-            this.addLog(`${actor.name} prays... (nothing happens)`);
-        } else if (action.action === 'override') {
-            // Set override for target
-            action.target.overrideAction = action.overrideAction;
-            this.addLog(`${actor.name} will control ${action.target.name}'s next action!`);
+        } catch (error) {
+            console.error('[Battle] Error in executeAction:', error);
+            this.addLog(`ERROR: ${actor?.name || 'Action'} failed!`);
+            throw error; // Re-throw to be caught by executePlayerAction
         }
     }
     
@@ -1451,14 +1469,24 @@ class Game {
     }
     
     gameLoop() {
-        this.update();
-        this.render();
+        try {
+            this.update();
+            this.render();
+        } catch (error) {
+            console.error('[Game Loop] Critical error:', error);
+            this.handleCriticalError(error, 'Game Loop');
+        }
         requestAnimationFrame(() => this.gameLoop());
     }
-    
+
     update() {
-        if (this.state === 'OVERWORLD') {
-            this.updateOverworld();
+        try {
+            if (this.state === 'OVERWORLD') {
+                this.updateOverworld();
+            }
+        } catch (error) {
+            console.error('[Update] Error during update:', error);
+            throw error; // Re-throw to be caught by gameLoop
         }
     }
     
@@ -1513,18 +1541,23 @@ class Game {
     }
     
     render() {
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        try {
+            this.ctx.clearRect(0, 0, this.width, this.height);
 
-        if (this.state === 'LOADING') {
-            this.renderLoading();
-        } else if (this.state === 'ERROR') {
-            this.renderError();
-        } else if (this.state === 'TITLE') {
-            this.renderTitle();
-        } else if (this.state === 'OVERWORLD') {
-            this.renderOverworld();
-        } else if (this.state === 'BATTLE') {
-            this.renderBattle();
+            if (this.state === 'LOADING') {
+                this.renderLoading();
+            } else if (this.state === 'ERROR') {
+                this.renderError();
+            } else if (this.state === 'TITLE') {
+                this.renderTitle();
+            } else if (this.state === 'OVERWORLD') {
+                this.renderOverworld();
+            } else if (this.state === 'BATTLE') {
+                this.renderBattle();
+            }
+        } catch (error) {
+            console.error('[Render] Error during render:', error);
+            throw error; // Re-throw to be caught by gameLoop
         }
     }
 
@@ -2270,37 +2303,48 @@ class Game {
     }
     
     openMenu() {
-        this.state = 'MENU';
-        const menuElement = document.getElementById('main-menu');
-        menuElement.classList.remove('hidden');
-        
-        // Setup menu options
-        const menuOptions = menuElement.querySelectorAll('.menu-option');
-        menuOptions.forEach(option => {
-            option.onclick = () => this.handleMenuSelection(option.dataset.menu);
-        });
-        
-        // Show default view (party status)
-        this.showMenuParty();
+        try {
+            this.state = 'MENU';
+            const menuElement = document.getElementById('main-menu');
+            menuElement.classList.remove('hidden');
+
+            // Setup menu options
+            const menuOptions = menuElement.querySelectorAll('.menu-option');
+            menuOptions.forEach(option => {
+                option.onclick = () => this.handleMenuSelection(option.dataset.menu);
+            });
+
+            // Show default view (party status)
+            this.showMenuParty();
+        } catch (error) {
+            console.error('[Menu] Error opening menu:', error);
+            this.showMessage('Error opening menu! Please try again.');
+        }
     }
-    
+
     handleMenuSelection(menuType) {
-        switch (menuType) {
-            case 'party':
-                this.showMenuParty();
-                break;
-            case 'equipment':
-                this.showMenuEquipment();
-                break;
-            case 'inventory':
-                this.showMenuInventory();
-                break;
-            case 'save':
-                this.showMenuSave();
-                break;
-            case 'close':
-                this.closeMenu();
-                break;
+        try {
+            switch (menuType) {
+                case 'party':
+                    this.showMenuParty();
+                    break;
+                case 'equipment':
+                    this.showMenuEquipment();
+                    break;
+                case 'inventory':
+                    this.showMenuInventory();
+                    break;
+                case 'save':
+                    this.showMenuSave();
+                    break;
+                case 'close':
+                    this.closeMenu();
+                    break;
+            }
+        } catch (error) {
+            console.error('[Menu] Error handling menu selection:', error);
+            this.showMessage('Menu error! Closing menu.');
+            this.closeMenu();
         }
     }
     
@@ -2537,13 +2581,167 @@ class Game {
     showMessage(text) {
         const dialogueBox = document.getElementById('dialogue-box');
         const dialogueText = document.getElementById('dialogue-text');
-        
+
         dialogueText.textContent = text;
         dialogueBox.classList.remove('hidden');
-        
+
         setTimeout(() => {
             dialogueBox.classList.add('hidden');
         }, 3000);
+    }
+
+    // ===== ERROR HANDLING SYSTEM =====
+
+    handleCriticalError(error, context) {
+        // Log error details
+        this.logError(error, context);
+
+        // Show user-friendly error message
+        this.showErrorUI(error, context);
+
+        // Attempt recovery if possible
+        this.attemptErrorRecovery(context);
+    }
+
+    logError(error, context) {
+        // Initialize error log if not exists
+        if (!this.errorLog) {
+            this.errorLog = [];
+        }
+
+        const errorEntry = {
+            timestamp: new Date().toISOString(),
+            context: context,
+            message: error.message,
+            stack: error.stack,
+            state: this.state,
+            party: this.party ? this.party.map(m => ({ name: m.name, hp: m.stats.hp })) : null
+        };
+
+        this.errorLog.push(errorEntry);
+
+        // Keep only last 50 errors
+        if (this.errorLog.length > 50) {
+            this.errorLog.shift();
+        }
+
+        // Log to console with formatting
+        console.group(`[ERROR] ${context}`);
+        console.error('Message:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('Game State:', this.state);
+        console.groupEnd();
+
+        // Store in localStorage for debugging
+        try {
+            localStorage.setItem('genericJRPG_errorLog', JSON.stringify(this.errorLog));
+        } catch (e) {
+            console.warn('Could not save error log to localStorage');
+        }
+    }
+
+    showErrorUI(error, context) {
+        // Create error overlay if it doesn't exist
+        let errorOverlay = document.getElementById('error-overlay');
+        if (!errorOverlay) {
+            errorOverlay = document.createElement('div');
+            errorOverlay.id = 'error-overlay';
+            errorOverlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                font-family: 'Courier New', monospace;
+            `;
+            document.body.appendChild(errorOverlay);
+        }
+
+        errorOverlay.innerHTML = `
+            <div style="background: #300; border: 3px solid #f00; border-radius: 8px; padding: 30px; max-width: 600px; color: #fff;">
+                <h2 style="color: #f00; margin-top: 0;">⚠️ Critical Error</h2>
+                <p style="color: #ff6666;"><strong>Context:</strong> ${context}</p>
+                <p style="color: #ff9999;"><strong>Message:</strong> ${error.message}</p>
+                <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.5); border: 1px solid #666; border-radius: 4px;">
+                    <p style="margin: 0 0 10px 0; color: #ccc;"><strong>Recovery Options:</strong></p>
+                    <button onclick="location.reload()" style="
+                        background: #c00;
+                        color: #fff;
+                        border: none;
+                        padding: 10px 20px;
+                        margin-right: 10px;
+                        cursor: pointer;
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        border-radius: 4px;
+                    ">Reload Game</button>
+                    <button onclick="document.getElementById('error-overlay').style.display='none'" style="
+                        background: #666;
+                        color: #fff;
+                        border: none;
+                        padding: 10px 20px;
+                        cursor: pointer;
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        border-radius: 4px;
+                    ">Dismiss</button>
+                </div>
+                <p style="font-size: 12px; color: #999; margin-top: 15px;">
+                    Error details have been logged to console (F12).
+                </p>
+            </div>
+        `;
+
+        errorOverlay.style.display = 'flex';
+    }
+
+    attemptErrorRecovery(context) {
+        // Attempt context-specific recovery
+        console.log(`[Recovery] Attempting recovery for: ${context}`);
+
+        if (context === 'Game Loop') {
+            // Game loop errors are non-fatal, continue running
+            console.log('[Recovery] Game loop will continue');
+        } else if (context.includes('Battle')) {
+            // Battle errors - try to end battle safely
+            try {
+                if (this.battle) {
+                    this.battle = null;
+                    this.state = 'OVERWORLD';
+                    document.getElementById('battle-ui').classList.add('hidden');
+                    console.log('[Recovery] Battle safely terminated');
+                }
+            } catch (e) {
+                console.error('[Recovery] Could not recover from battle error:', e);
+            }
+        } else if (context.includes('Menu')) {
+            // Menu errors - close menu and return to overworld
+            try {
+                this.state = 'OVERWORLD';
+                document.getElementById('main-menu').classList.add('hidden');
+                console.log('[Recovery] Menu safely closed');
+            } catch (e) {
+                console.error('[Recovery] Could not recover from menu error:', e);
+            }
+        }
+    }
+
+    getErrorLog() {
+        return this.errorLog || [];
+    }
+
+    clearErrorLog() {
+        this.errorLog = [];
+        try {
+            localStorage.removeItem('genericJRPG_errorLog');
+        } catch (e) {
+            console.warn('Could not clear error log from localStorage');
+        }
     }
 }
 

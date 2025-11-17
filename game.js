@@ -132,28 +132,32 @@ class SaveSystem {
         }
     }
 
-    load() {
+    _getRawSaveData() {
         try {
             const data = localStorage.getItem(this.saveKey);
-            if (!data) {
-                console.log('[SaveSystem] No save data found');
-                return null;
-            }
-
-            const saveData = JSON.parse(data);
-
-            // Version check
-            if (saveData.version !== this.version) {
-                console.warn('[SaveSystem] Save version mismatch');
-                // Could implement migration here
-            }
-
-            console.log('[SaveSystem] Save data loaded successfully');
-            return saveData;
+            if (!data) return null;
+            return JSON.parse(data);
         } catch (error) {
-            console.error('[SaveSystem] Failed to load:', error);
+            console.error('[SaveSystem] Failed to parse save data:', error);
             return null;
         }
+    }
+
+    load() {
+        const saveData = this._getRawSaveData();
+        if (!saveData) {
+            console.log('[SaveSystem] No save data found');
+            return null;
+        }
+
+        // Version check
+        if (saveData.version !== this.version) {
+            console.warn('[SaveSystem] Save version mismatch');
+            // Could implement migration here
+        }
+
+        console.log('[SaveSystem] Save data loaded successfully');
+        return saveData;
     }
 
     serializeCharacter(character) {
@@ -166,9 +170,9 @@ class SaveSystem {
             stats: { ...character.stats },
             abilities: [...character.abilities],
             equipment: {
-                weapon: character.equipment.weapon,
-                armor: character.equipment.armor,
-                accessory: character.equipment.accessory
+                weapon: Object.keys(EQUIPMENT_DATA).find(key => EQUIPMENT_DATA[key] === character.equipment.weapon) || null,
+                armor: Object.keys(EQUIPMENT_DATA).find(key => EQUIPMENT_DATA[key] === character.equipment.armor) || null,
+                accessory: Object.keys(EQUIPMENT_DATA).find(key => EQUIPMENT_DATA[key] === character.equipment.accessory) || null
             },
             statusEffects: { ...character.statusEffects }
         };
@@ -190,20 +194,15 @@ class SaveSystem {
     }
 
     getSaveInfo() {
-        try {
-            const data = localStorage.getItem(this.saveKey);
-            if (!data) return null;
+        const saveData = this._getRawSaveData();
+        if (!saveData) return null;
 
-            const saveData = JSON.parse(data);
-            return {
-                timestamp: saveData.timestamp,
-                playTime: saveData.playTime,
-                storyPhase: saveData.storyPhase,
-                partySize: saveData.party.length
-            };
-        } catch (error) {
-            return null;
-        }
+        return {
+            timestamp: saveData.timestamp,
+            playTime: saveData.playTime,
+            storyPhase: saveData.storyPhase,
+            partySize: saveData.party.length
+        };
     }
 }
 
@@ -982,10 +981,10 @@ class BattleSystem {
     }
 
     async executeAITurn() {
-        try {
-            if (this.isExecuting) return;
-            this.isExecuting = true;
+        if (this.isExecuting) return;
+        this.isExecuting = true;
 
+        try {
             this.waitingForPlayer = false;
             const allies = this.party;
             const enemies = this.enemies;
@@ -1030,31 +1029,33 @@ class BattleSystem {
             // Use Promise-based delay instead of setTimeout
             await this.delay(1500);
 
-            this.isExecuting = false;
             this.nextTurn();
         } catch (error) {
             console.error('[Battle] Error in executeAITurn:', error);
             this.addLog('ERROR: AI turn failed!');
+            this.nextTurn();
+        } finally {
             this.isExecuting = false;
         }
     }
 
     async executePlayerAction(action) {
-        try {
-            if (this.isExecuting) return;
-            this.isExecuting = true;
+        if (this.isExecuting) return;
+        this.isExecuting = true;
 
+        try {
             this.waitingForPlayer = false;
             this.executeAction(action);
 
             // Use Promise-based delay instead of setTimeout
             await this.delay(1500);
 
-            this.isExecuting = false;
             this.nextTurn();
         } catch (error) {
             console.error('[Battle] Error executing player action:', error);
             this.addLog('ERROR: Action failed!');
+            this.nextTurn();
+        } finally {
             this.isExecuting = false;
         }
     }
@@ -1800,9 +1801,10 @@ class Game {
         }
 
         // Draw paths using path tileset
-        const pathCenterX = this.width / 2;
-        const pathCenterY = this.height / 2;
-        const pathWidth = 80;
+        // Align all path coordinates to tile grid to prevent visual artifacts
+        const pathWidth = 64; // Must be multiple of tileSize (32)
+        const pathCenterX = Math.floor(this.width / 2 / tileSize) * tileSize;
+        const pathCenterY = Math.floor(this.height / 2 / tileSize) * tileSize;
 
         // Vertical path
         for (let y = 0; y < this.height; y += tileSize) {
@@ -2865,23 +2867,49 @@ class Game {
         }
 
         html += `
-            <div class="menu-option" onclick="game.performSave()" style="margin-bottom: 8px;">
+            <div class="menu-option" data-save-action="save" style="margin-bottom: 8px;">
                 Save Game
             </div>
         `;
 
         if (hasSave) {
             html += `
-                <div class="menu-option" onclick="game.performLoad()" style="margin-bottom: 8px;">
+                <div class="menu-option" data-save-action="load" style="margin-bottom: 8px;">
                     Load Game
                 </div>
-                <div class="menu-option" onclick="game.performDeleteSave()" style="margin-bottom: 8px; border-color: #8b0000;">
+                <div class="menu-option" data-save-action="delete" style="margin-bottom: 8px; border-color: #8b0000;">
                     Delete Save Data
                 </div>
             `;
         }
 
         details.innerHTML = html;
+
+        // Use event delegation for save menu options
+        const handleSaveAction = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.saveAction) {
+                const action = option.dataset.saveAction;
+                switch (action) {
+                    case 'save':
+                        this.performSave();
+                        break;
+                    case 'load':
+                        this.performLoad();
+                        break;
+                    case 'delete':
+                        this.performDeleteSave();
+                        break;
+                }
+            }
+        };
+
+        // Remove previous listener if exists
+        details.removeEventListener('click', this._saveMenuHandler);
+
+        // Store handler reference for cleanup
+        this._saveMenuHandler = handleSaveAction;
+        details.addEventListener('click', handleSaveAction);
     }
 
     performSave() {

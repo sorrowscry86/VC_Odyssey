@@ -2433,32 +2433,146 @@ class Game {
     }
     
     selectOverrideAction(overrider, target) {
-        // Show a menu to select what action the AI should take
-        alert(`Override menu for ${target.name} - selecting Attack for now`);
-        
-        // For now, just make them attack a random enemy
-        const livingEnemies = this.battle.enemies.filter(e => e.stats.hp > 0);
-        if (livingEnemies.length > 0) {
-            const randomEnemy = livingEnemies[0];
+        // Hide other menus
+        document.getElementById('action-menu').classList.add('hidden');
+        document.getElementById('ability-menu').classList.add('hidden');
+        document.getElementById('item-menu').classList.add('hidden');
 
-            this.battle.executePlayerAction({
-                action: 'override',
-                target: target,
-                overrideAction: {
-                    action: 'attack',
-                    target: randomEnemy
-                }
-            });
-        } else {
-            // No enemies to attack, so just defend
-            this.battle.executePlayerAction({
-                action: 'override',
-                target: target,
-                overrideAction: {
-                    action: 'defend'
-                }
-            });
+        // Show override action menu
+        const overrideMenu = document.getElementById('override-action-menu');
+        const overrideOptions = document.getElementById('override-action-options');
+        overrideMenu.classList.remove('hidden');
+
+        // Build action options
+        const actions = [
+            { id: 'attack', label: 'Attack' },
+            { id: 'defend', label: 'Defend' }
+        ];
+
+        // Add ability option if target has abilities
+        if (target.abilities && target.abilities.length > 0) {
+            actions.push({ id: 'ability', label: 'Abilities' });
         }
+
+        // Render options
+        overrideOptions.innerHTML = actions.map(action =>
+            `<div class="menu-option" data-override-action="${action.id}">${action.label}</div>`
+        ).join('');
+
+        // Use event delegation for memory safety
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.overrideAction) {
+                const actionType = option.dataset.overrideAction;
+                this.handleOverrideActionSelection(overrider, target, actionType);
+            }
+        };
+
+        overrideOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: overrideOptions,
+            event: 'click',
+            handler: handler
+        });
+    }
+
+    handleOverrideActionSelection(overrider, target, actionType) {
+        // Hide override action menu
+        document.getElementById('override-action-menu').classList.add('hidden');
+
+        switch (actionType) {
+            case 'attack':
+                // Show enemy target selection
+                this.selectTarget(target, 'enemy', (selectedTarget) => {
+                    this.executeOverrideAction(overrider, target, {
+                        action: 'attack',
+                        target: selectedTarget
+                    });
+                });
+                break;
+
+            case 'defend':
+                // Defend needs no target
+                this.executeOverrideAction(overrider, target, {
+                    action: 'defend'
+                });
+                break;
+
+            case 'ability':
+                // Show ability selection for the target character
+                this.showOverrideAbilityMenu(overrider, target);
+                break;
+        }
+    }
+
+    showOverrideAbilityMenu(overrider, target) {
+        const abilityMenu = document.getElementById('ability-menu');
+        const abilityOptions = document.getElementById('ability-options');
+        abilityMenu.classList.remove('hidden');
+
+        // Build ability list for the target character
+        const abilities = target.abilities.map(abilityId => {
+            const ability = ABILITIES[abilityId];
+            if (!ability) return null;
+
+            const canUse = target.stats.mp >= ability.cost;
+            return {
+                id: abilityId,
+                name: ability.name,
+                cost: ability.cost,
+                canUse: canUse
+            };
+        }).filter(a => a !== null);
+
+        // Render abilities
+        abilityOptions.innerHTML = abilities.map(ability =>
+            `<div class="menu-option ${ability.canUse ? '' : 'disabled'}" data-ability="${ability.id}">
+                ${ability.name}
+                <span class="mp-cost">MP: ${ability.cost}</span>
+            </div>`
+        ).join('');
+
+        // Use event delegation
+        const handler = (e) => {
+            const option = e.target.closest('.menu-option');
+            if (option && option.dataset.ability && !option.classList.contains('disabled')) {
+                const abilityId = option.dataset.ability;
+                const ability = ABILITIES[abilityId];
+
+                // Hide ability menu and show target selection
+                abilityMenu.classList.add('hidden');
+
+                // Determine target type based on ability
+                const targetType = ability.targetType || 'enemy';
+                this.selectTarget(target, targetType, (selectedTarget) => {
+                    this.executeOverrideAction(overrider, target, {
+                        action: 'ability',
+                        ability: abilityId,
+                        target: selectedTarget
+                    });
+                });
+            }
+        };
+
+        abilityOptions.addEventListener('click', handler);
+
+        // Track for cleanup
+        this.battleMenuCleanup.push({
+            element: abilityOptions,
+            event: 'click',
+            handler: handler
+        });
+    }
+
+    executeOverrideAction(overrider, target, overrideAction) {
+        // Execute the override action
+        this.battle.executePlayerAction({
+            action: 'override',
+            target: target,
+            overrideAction: overrideAction
+        });
     }
     
     selectTarget(character, targetType, callback) {
